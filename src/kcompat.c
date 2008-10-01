@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2009 Intel Corporation.
+  Copyright(c) 2007-2008 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -25,30 +25,14 @@
 
 *******************************************************************************/
 
-#include "igb.h"
-#include "kcompat.h"
 
-/*****************************************************************************/
-#if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,4,21) )
-struct sk_buff *
-_kc_skb_pad(struct sk_buff *skb, int pad)
-{
-        struct sk_buff *nskb;
-        
-        /* If the skbuff is non linear tailroom is always zero.. */
-        if(skb_tailroom(skb) >= pad)
-        {
-                memset(skb->data+skb->len, 0, pad);
-                return skb;
-        }
-        
-        nskb = skb_copy_expand(skb, skb_headroom(skb), skb_tailroom(skb) + pad, GFP_ATOMIC);
-        kfree_skb(skb);
-        if(nskb)
-                memset(nskb->data+nskb->len, 0, pad);
-        return nskb;
-} 
-#endif /* < 2.4.21 */
+
+
+#include "igb.h"
+
+
+
+#include "kcompat.h"
 
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,4,13) )
@@ -294,7 +278,7 @@ struct sk_buff *_kc_netdev_alloc_skb(struct net_device *dev,
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19) )
 int _kc_pci_save_state(struct pci_dev *pdev)
-{
+{ 
 	struct net_device *netdev = pci_get_drvdata(pdev);
 	struct adapter_struct *adapter = netdev_priv(netdev);
 	int size = PCI_CONFIG_SPACE_LEN, i;
@@ -308,7 +292,7 @@ int _kc_pci_save_state(struct pci_dev *pdev)
 		size = PCIE_CONFIG_SPACE_LEN;
 	}
 	pci_config_space_ich8lan();
-#ifdef HAVE_PCI_ERS
+#ifdef HAVE_PCI_ERS 
 	if (adapter->config_space == NULL)
 #else
 	WARN_ON(adapter->config_space != NULL);
@@ -333,12 +317,12 @@ void _kc_pci_restore_state(struct pci_dev * pdev)
 
 	if (adapter->config_space != NULL) {
 		pcie_cap_offset = pci_find_capability(pdev, PCI_CAP_ID_EXP);
-		if (pcie_cap_offset &&
+		if (pcie_cap_offset && 
 		    !pci_read_config_word(pdev,
 		                          pcie_cap_offset + PCIE_LINK_STATUS,
 		                          &pcie_link_status))
 			size = PCIE_CONFIG_SPACE_LEN;
-
+	
 		pci_config_space_ich8lan();
 		for (i = 0; i < (size / 4); i++)
 		pci_write_config_dword(pdev, i * 4, adapter->config_space[i]);
@@ -372,16 +356,12 @@ void _kc_free_netdev(struct net_device *netdev)
 #endif /* <= 2.6.18 */
 
 /*****************************************************************************/
+#if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23) )
+#endif /* < 2.6.23 */
+
+/*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) )
 #ifdef NAPI
-struct net_device *napi_to_poll_dev(struct napi_struct *napi)
-{
-	struct adapter_q_vector *q_vector = container_of(napi,
-	                                                struct adapter_q_vector,
-	                                                napi);
-	return &q_vector->poll_dev;
-}
-
 int __kc_adapter_clean(struct net_device *netdev, int *budget)
 {
 	int work_done;
@@ -391,7 +371,7 @@ int __kc_adapter_clean(struct net_device *netdev, int *budget)
 	work_done = napi->poll(napi, work_to_do);
 	*budget -= work_done;
 	netdev->quota -= work_done;
-	return (work_done >= work_to_do) ? 1 : 0;
+	return work_done ? 1 : 0;
 }
 #endif /* NAPI */
 #endif /* <= 2.6.24 */
@@ -430,123 +410,4 @@ void _kc_netif_tx_start_all_queues(struct net_device *netdev)
 			netif_start_subqueue(netdev, i);
 }
 #endif /* HAVE_TX_MQ */
-#endif /* < 2.6.27 */
-
-/*****************************************************************************/
-#if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28) )
-
-int
-_kc_pci_prepare_to_sleep(struct pci_dev *dev)
-{
-	pci_power_t target_state;
-	int error;
-
-	target_state = pci_choose_state(dev, PMSG_SUSPEND);
-
-	pci_enable_wake(dev, target_state, true);
-
-	error = pci_set_power_state(dev, target_state);
-
-	if (error)
-		pci_enable_wake(dev, target_state, false);
-
-	return error;
-}
-
-int
-_kc_pci_wake_from_d3(struct pci_dev *dev, bool enable)
-{
-	int err;
-
-	err = pci_enable_wake(dev, PCI_D3cold, enable);
-	if (err)
-		goto out;
-
-	err = pci_enable_wake(dev, PCI_D3hot, enable);
-
-out:
-	return err;
-}
-#endif /* < 2.6.28 */
-
-/*****************************************************************************/
-#if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29) )
-void _kc_pci_disable_link_state(struct pci_dev *pdev, int state)
-{
-	struct pci_dev *parent = pdev->bus->self;
-	u16 link_state;
-	int pos;
-
-	if (!parent)
-		return;
-
-	pos = pci_find_capability(parent, PCI_CAP_ID_EXP);
-	if (pos) {
-		pci_read_config_word(parent, pos + PCI_EXP_LNKCTL, &link_state);
-		link_state &= ~state;
-		pci_write_config_word(parent, pos + PCI_EXP_LNKCTL, link_state);
-	}
-}
-#endif /* < 2.6.29 */
-
-/*****************************************************************************/
-#if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30) )
-#ifdef HAVE_NETDEV_SELECT_QUEUE
-#include <net/ip.h>
-static u32 _kc_simple_tx_hashrnd;
-static u32 _kc_simple_tx_hashrnd_initialized;
-
-u16 _kc_skb_tx_hash(struct net_device *dev, struct sk_buff *skb)
-{
-	u32 addr1, addr2, ports;
-	u32 hash, ihl;
-	u8 ip_proto = 0;
-
-	if (unlikely(!_kc_simple_tx_hashrnd_initialized)) {
-		get_random_bytes(&_kc_simple_tx_hashrnd, 4);
-		_kc_simple_tx_hashrnd_initialized = 1;
-	}
-
-	switch (skb->protocol) {
-	case htons(ETH_P_IP):
-		if (!(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET)))
-			ip_proto = ip_hdr(skb)->protocol;
-		addr1 = ip_hdr(skb)->saddr;
-		addr2 = ip_hdr(skb)->daddr;
-		ihl = ip_hdr(skb)->ihl;
-		break;
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
-	case htons(ETH_P_IPV6):
-		ip_proto = ipv6_hdr(skb)->nexthdr;
-		addr1 = ipv6_hdr(skb)->saddr.s6_addr32[3];
-		addr2 = ipv6_hdr(skb)->daddr.s6_addr32[3];
-		ihl = (40 >> 2);
-		break;
-#endif
-	default:
-		return 0;
-	}
-
-
-	switch (ip_proto) {
-	case IPPROTO_TCP:
-	case IPPROTO_UDP:
-	case IPPROTO_DCCP:
-	case IPPROTO_ESP:
-	case IPPROTO_AH:
-	case IPPROTO_SCTP:
-	case IPPROTO_UDPLITE:
-		ports = *((u32 *) (skb_network_header(skb) + (ihl * 4)));
-		break;
-
-	default:
-		ports = 0;
-		break;
-	}
-
-	hash = jhash_3words(addr1, addr2, ports, _kc_simple_tx_hashrnd);
-
-	return (u16) (((u64) hash * dev->real_num_tx_queues) >> 32);
-}
-#endif /* HAVE_NETDEV_SELECT_QUEUE */
-#endif /* < 2.6.30 */
+#endif /* <= 2.6.27 */

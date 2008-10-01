@@ -1,7 +1,7 @@
 ################################################################################
 #
 # Intel(R) Gigabit Ethernet Linux driver
-# Copyright(c) 2007-2009 Intel Corporation.
+# Copyright(c) 2007-2008 Intel Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -186,14 +186,6 @@ KKVER := $(shell echo $(KVER) | \
 ifeq ($(KKVER), 0)
   $(error *** Aborting the build. \
           *** This driver is not supported on kernel versions older than 2.4.0)
-endif
-
-# look for PCI in config.h
-PCI := $(shell $(CC) $(EXTRA_CFLAGS) -E -dM $(CONFIG_FILE) | \
-         grep -w CONFIG_PCI | awk '{ print $$3 }')
-ifneq ($(PCI),1)
-  $(error *** Aborting the build. \
-          *** This driver requires that CONFIG_PCI is enabled)
 endif
 
 # set the install path

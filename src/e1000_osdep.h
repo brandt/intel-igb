@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2009 Intel Corporation.
+  Copyright(c) 2007-2008 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -42,13 +42,12 @@
 
 #define usec_delay(x) udelay(x)
 #ifndef msec_delay
-#define msec_delay(x) do { \
-	/* Don't mdelay in interrupt context! */ \
-	if (in_interrupt()) \
-		BUG(); \
-	else \
-		msleep(x); \
-} while (0)
+#define msec_delay(x)	do { if (in_interrupt()) { \
+				/* Don't mdelay in interrupt context! */ \
+	                	BUG(); \
+			} else { \
+				msleep(x); \
+			} } while (0)
 
 /* Some workarounds require millisecond delays and are run during interrupt
  * context.  Most notably, when establishing link, the phy may need tweaking
