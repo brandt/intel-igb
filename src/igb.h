@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2008 Intel Corporation.
+  Copyright(c) 2007-2009 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -73,13 +73,8 @@ struct igb_adapter;
 		__FUNCTION__ , ## args))
 
 /* Interrupt defines */
-#define IGB_PACKETS_PER_INT_LOW 32
-#define IGB_PACKETS_PER_INT_HI 96
-#define IGB_MIN_DYN_ITR 3000
-#define IGB_MAX_DYN_ITR 96000
-#define IGB_ITR_INT_MULTIPLIER 2
-#define IGB_START_ITR 6000
-#define IGB_ITR_INT_COUNT 5
+#define IGB_START_ITR                    648 /* ~6000 ints/sec */
+
 /* Interrupt modes, as used by the IntMode paramter */
 #define IGB_INT_MODE_LEGACY                0
 #define IGB_INT_MODE_MSI                   1
@@ -100,8 +95,14 @@ struct igb_adapter;
 #define IGB_MAX_ITR_USECS              10000 /* 100  irq/sec */
 
 /* Transmit and receive queues */
+#ifndef CONFIG_IGB_SEPARATE_TX_HANDLER
+#define IGB_MAX_RX_QUEUES                  (hw->mac.type > e1000_82575 ? 8 : 4)
+#define IGB_ABS_MAX_TX_QUEUES              8
+#else /* CONFIG_IGB_SEPARATE_TX_HANDLER */
 #define IGB_MAX_RX_QUEUES                  4
-#define IGB_MAX_TX_QUEUES                  4
+#define IGB_ABS_MAX_TX_QUEUES              4
+#endif  /* CONFIG_IGB_SEPARATE_TX_HANDLER */
+#define IGB_MAX_TX_QUEUES                  IGB_MAX_RX_QUEUES
 
 /* RX descriptor control thresholds.
  * PTHRESH - MAC will consider prefetch if it has fewer than this number of
@@ -162,13 +163,18 @@ struct igb_buffer {
 		/* TX */
 		struct {
 			unsigned long time_stamp;
-			u32 length;
+			u16 length;
+			u16 next_to_watch;
 		};
+
+#ifndef CONFIG_IGB_DISABLE_PACKET_SPLIT
 		/* RX */
 		struct {
 			struct page *page;
 			u64 page_dma;
+			unsigned int page_offset;
 		};
+#endif
 	};
 };
 
@@ -194,11 +200,13 @@ struct igb_ring {
 	u16 itr_register;
 	u16 cpu;
 
-	int queue_index;
+	u16 queue_index;
+	u16 reg_idx;
+	
 	unsigned int total_bytes;
 	unsigned int total_packets;
 
-	char name[IFNAMSIZ + 5];
+	char name[IFNAMSIZ + 9];
 	union {
 		/* TX */
 		struct {
@@ -207,12 +215,9 @@ struct igb_ring {
 		};
 		/* RX */
 		struct {
-			struct sk_buff *pending_skb;
-			int pending_skb_page;
 			struct igb_queue_stats rx_stats;
 			struct napi_struct napi;
 			int set_itr;
-			int interrupt_count;
 			struct igb_ring *buddy;
 #ifdef IGB_LRO
 			struct net_lro_mgr lro_mgr;
@@ -285,13 +290,11 @@ struct igb_adapter {
 
 	u64 hw_csum_err;
 	u64 hw_csum_good;
-	u64 rx_hdr_split;
 	u32 alloc_rx_buff_failed;
 	bool rx_csum;
 	u16 rx_ps_hdr_size;
 	u32 max_frame_size;
 	u32 min_frame_size;
-
 
 	/* OS defined structs */
 	struct net_device *netdev;
@@ -323,9 +326,9 @@ struct igb_adapter {
 	unsigned int flags;
 	u32 eeprom_wol;
 	u32 *config_space;
-#ifdef CONFIG_NETDEVICES_MULTIQUEUE
-	struct igb_ring *multi_tx_table[IGB_MAX_TX_QUEUES];
-#endif /* CONFIG_NETDEVICES_MULTIQUEUE */
+#ifdef HAVE_TX_MQ
+	struct igb_ring *multi_tx_table[IGB_ABS_MAX_TX_QUEUES];
+#endif /* HAVE_TX_MQ */
 #ifdef IGB_LRO
 	unsigned int lro_max_aggr;
 	unsigned int lro_aggregated;
@@ -334,7 +337,6 @@ struct igb_adapter {
 #endif
 	unsigned int tx_ring_count;
 	unsigned int rx_ring_count;
-	u32 stats_freq_us;
 };
 
 

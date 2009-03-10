@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2008 Intel Corporation.
+  Copyright(c) 2007-2009 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -65,7 +65,6 @@ s32 e1000_init_nvm_params(struct e1000_hw *hw)
 	s32 ret_val = E1000_SUCCESS;
 
 	if (hw->nvm.ops.init_params) {
-		hw->nvm.semaphore_delay = 10;
 		ret_val = hw->nvm.ops.init_params(hw);
 		if (ret_val) {
 			DEBUGOUT("NVM Initialization Error\n");
@@ -106,6 +105,7 @@ out:
 	return ret_val;
 }
 
+
 /**
  *  e1000_set_mac_type - Sets MAC type
  *  @hw: pointer to the HW structure
@@ -131,6 +131,8 @@ s32 e1000_set_mac_type(struct e1000_hw *hw)
 	case E1000_DEV_ID_82576:
 	case E1000_DEV_ID_82576_FIBER:
 	case E1000_DEV_ID_82576_SERDES:
+	case E1000_DEV_ID_82576_QUAD_COPPER:
+	case E1000_DEV_ID_82576_NS:
 		mac->type = e1000_82576;
 		break;
 	default:
@@ -210,24 +212,10 @@ s32 e1000_setup_init_funcs(struct e1000_hw *hw, bool init_device)
 		ret_val = e1000_init_phy_params(hw);
 		if (ret_val)
 			goto out;
-
 	}
 
 out:
 	return ret_val;
-}
-
-/**
- *  e1000_remove_device - Free device specific structure
- *  @hw: pointer to the HW structure
- *
- *  If a device specific structure was allocated, this function will
- *  free it. This is a function pointer entry point called by drivers.
- **/
-void e1000_remove_device(struct e1000_hw *hw)
-{
-	if (hw->mac.ops.remove_device)
-		hw->mac.ops.remove_device(hw);
 }
 
 /**
@@ -465,6 +453,21 @@ s32 e1000_blink_led(struct e1000_hw *hw)
 {
 	if (hw->mac.ops.blink_led)
 		return hw->mac.ops.blink_led(hw);
+
+	return E1000_SUCCESS;
+}
+
+/**
+ *  e1000_id_led_init - store LED configurations in SW
+ *  @hw: pointer to the HW structure
+ *
+ *  Initializes the LED config in SW. This is a function pointer entry point
+ *  called by drivers.
+ **/
+s32 e1000_id_led_init(struct e1000_hw *hw)
+{
+	if (hw->mac.ops.id_led_init)
+		return hw->mac.ops.id_led_init(hw);
 
 	return E1000_SUCCESS;
 }

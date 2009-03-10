@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2008 Intel Corporation.
+  Copyright(c) 2007-2009 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -27,6 +27,7 @@
 
 #include "e1000_api.h"
 
+static s32 e1000_phy_setup_autoneg(struct e1000_hw *hw);
 /* Cable length tables */
 static const u16 e1000_m88_cable_length_table[] =
 	{ 0, 50, 80, 110, 140, 140, E1000_CABLE_LENGTH_UNDEFINED };
@@ -259,8 +260,7 @@ s32 e1000_read_phy_reg_m88(struct e1000_hw *hw, u32 offset, u16 *data)
 	if (ret_val)
 		goto out;
 
-	ret_val = e1000_read_phy_reg_mdic(hw,
-	                                  MAX_PHY_REG_ADDRESS & offset,
+	ret_val = e1000_read_phy_reg_mdic(hw, MAX_PHY_REG_ADDRESS & offset,
 	                                  data);
 
 	hw->phy.ops.release(hw);
@@ -291,8 +291,7 @@ s32 e1000_write_phy_reg_m88(struct e1000_hw *hw, u32 offset, u16 data)
 	if (ret_val)
 		goto out;
 
-	ret_val = e1000_write_phy_reg_mdic(hw,
-	                                   MAX_PHY_REG_ADDRESS & offset,
+	ret_val = e1000_write_phy_reg_mdic(hw, MAX_PHY_REG_ADDRESS & offset,
 	                                   data);
 
 	hw->phy.ops.release(hw);
@@ -334,8 +333,7 @@ s32 e1000_read_phy_reg_igp(struct e1000_hw *hw, u32 offset, u16 *data)
 		}
 	}
 
-	ret_val = e1000_read_phy_reg_mdic(hw,
-	                                  MAX_PHY_REG_ADDRESS & offset,
+	ret_val = e1000_read_phy_reg_mdic(hw, MAX_PHY_REG_ADDRESS & offset,
 	                                  data);
 
 	hw->phy.ops.release(hw);
@@ -376,8 +374,7 @@ s32 e1000_write_phy_reg_igp(struct e1000_hw *hw, u32 offset, u16 data)
 		}
 	}
 
-	ret_val = e1000_write_phy_reg_mdic(hw,
-	                                   MAX_PHY_REG_ADDRESS & offset,
+	ret_val = e1000_write_phy_reg_mdic(hw, MAX_PHY_REG_ADDRESS & offset,
 	                                   data);
 
 	hw->phy.ops.release(hw);
@@ -498,19 +495,19 @@ s32 e1000_copper_link_setup_m88(struct e1000_hw *hw)
 	phy_data &= ~M88E1000_PSCR_AUTO_X_MODE;
 
 	switch (phy->mdix) {
-		case 1:
-			phy_data |= M88E1000_PSCR_MDI_MANUAL_MODE;
-			break;
-		case 2:
-			phy_data |= M88E1000_PSCR_MDIX_MANUAL_MODE;
-			break;
-		case 3:
-			phy_data |= M88E1000_PSCR_AUTO_X_1000T;
-			break;
-		case 0:
-		default:
-			phy_data |= M88E1000_PSCR_AUTO_X_MODE;
-			break;
+	case 1:
+		phy_data |= M88E1000_PSCR_MDI_MANUAL_MODE;
+		break;
+	case 2:
+		phy_data |= M88E1000_PSCR_MDIX_MANUAL_MODE;
+		break;
+	case 3:
+		phy_data |= M88E1000_PSCR_AUTO_X_1000T;
+		break;
+	case 0:
+	default:
+		phy_data |= M88E1000_PSCR_AUTO_X_MODE;
+		break;
 	}
 
 	/*
@@ -533,8 +530,7 @@ s32 e1000_copper_link_setup_m88(struct e1000_hw *hw)
 		 * Force TX_CLK in the Extended PHY Specific Control Register
 		 * to 25MHz clock.
 		 */
-		ret_val = phy->ops.read_reg(hw,
-		                             M88E1000_EXT_PHY_SPEC_CTRL,
+		ret_val = phy->ops.read_reg(hw, M88E1000_EXT_PHY_SPEC_CTRL,
 		                             &phy_data);
 		if (ret_val)
 			goto out;
@@ -553,8 +549,7 @@ s32 e1000_copper_link_setup_m88(struct e1000_hw *hw)
 			phy_data |= (M88E1000_EPSCR_MASTER_DOWNSHIFT_1X |
 			             M88E1000_EPSCR_SLAVE_DOWNSHIFT_1X);
 		}
-		ret_val = phy->ops.write_reg(hw,
-		                             M88E1000_EXT_PHY_SPEC_CTRL,
+		ret_val = phy->ops.write_reg(hw, M88E1000_EXT_PHY_SPEC_CTRL,
 		                             phy_data);
 		if (ret_val)
 			goto out;
@@ -792,7 +787,7 @@ out:
  *  return successful.  Otherwise, setup advertisement and flow control to
  *  the appropriate values for the wanted auto-negotiation.
  **/
-s32 e1000_phy_setup_autoneg(struct e1000_hw *hw)
+static s32 e1000_phy_setup_autoneg(struct e1000_hw *hw)
 {
 	struct e1000_phy_info *phy = &hw->phy;
 	s32 ret_val;
@@ -810,8 +805,7 @@ s32 e1000_phy_setup_autoneg(struct e1000_hw *hw)
 
 	if (phy->autoneg_mask & ADVERTISE_1000_FULL) {
 		/* Read the MII 1000Base-T Control Register (Address 9). */
-		ret_val = phy->ops.read_reg(hw,
-		                            PHY_1000T_CTRL,
+		ret_val = phy->ops.read_reg(hw, PHY_1000T_CTRL,
 		                            &mii_1000t_ctrl_reg);
 		if (ret_val)
 			goto out;
@@ -863,9 +857,8 @@ s32 e1000_phy_setup_autoneg(struct e1000_hw *hw)
 	}
 
 	/* We do not allow the Phy to advertise 1000 Mb Half Duplex */
-	if (phy->autoneg_advertised & ADVERTISE_1000_HALF) {
+	if (phy->autoneg_advertised & ADVERTISE_1000_HALF)
 		DEBUGOUT("Advertise 1000mb Half duplex request denied!\n");
-	}
 
 	/* Do we want to advertise 1000 Mb Full Duplex? */
 	if (phy->autoneg_advertised & ADVERTISE_1000_FULL) {
@@ -891,7 +884,7 @@ s32 e1000_phy_setup_autoneg(struct e1000_hw *hw)
 	 *  other:  No software override.  The flow control configuration
 	 *          in the EEPROM is used.
 	 */
-	switch (hw->fc.type) {
+	switch (hw->fc.current_mode) {
 	case e1000_fc_none:
 		/*
 		 * Flow control (Rx & Tx) is completely disabled by a
@@ -1067,9 +1060,8 @@ s32 e1000_phy_force_speed_duplex_igp(struct e1000_hw *hw)
 		if (ret_val)
 			goto out;
 
-		if (!link) {
+		if (!link)
 			DEBUGOUT("Link taking longer than expected.\n");
-		}
 
 		/* Try once more */
 		ret_val = e1000_phy_has_link_generic(hw,
@@ -1124,22 +1116,20 @@ s32 e1000_phy_force_speed_duplex_m88(struct e1000_hw *hw)
 
 	e1000_phy_force_speed_duplex_setup(hw, &phy_data);
 
-	/* Reset the phy to commit changes. */
-	phy_data |= MII_CR_RESET;
-
 	ret_val = phy->ops.write_reg(hw, PHY_CONTROL, phy_data);
 	if (ret_val)
 		goto out;
 
-	usec_delay(1);
+	/* Reset the phy to commit changes. */
+	ret_val = hw->phy.ops.commit(hw);
+	if (ret_val)
+		goto out;
 
 	if (phy->autoneg_wait_to_complete) {
 		DEBUGOUT("Waiting for forced speed/duplex link on M88 phy.\n");
 
-		ret_val = e1000_phy_has_link_generic(hw,
-		                                     PHY_FORCE_LIMIT,
-		                                     100000,
-		                                     &link);
+		ret_val = e1000_phy_has_link_generic(hw, PHY_FORCE_LIMIT,
+		                                     100000, &link);
 		if (ret_val)
 			goto out;
 
@@ -1159,10 +1149,8 @@ s32 e1000_phy_force_speed_duplex_m88(struct e1000_hw *hw)
 		}
 
 		/* Try once more */
-		ret_val = e1000_phy_has_link_generic(hw,
-		                                     PHY_FORCE_LIMIT,
-		                                     100000,
-		                                     &link);
+		ret_val = e1000_phy_has_link_generic(hw, PHY_FORCE_LIMIT,
+		                                     100000, &link);
 		if (ret_val)
 			goto out;
 	}
@@ -1216,7 +1204,7 @@ void e1000_phy_force_speed_duplex_setup(struct e1000_hw *hw, u16 *phy_ctrl)
 	DEBUGFUNC("e1000_phy_force_speed_duplex_setup");
 
 	/* Turn off flow control when forcing speed/duplex */
-	hw->fc.type = e1000_fc_none;
+	hw->fc.current_mode = e1000_fc_none;
 
 	/* Force speed/duplex on the mac */
 	ctrl = E1000_READ_REG(hw, E1000_CTRL);
@@ -1289,8 +1277,7 @@ s32 e1000_set_d3_lplu_state_generic(struct e1000_hw *hw, bool active)
 
 	if (!active) {
 		data &= ~IGP02E1000_PM_D3_LPLU;
-		ret_val = phy->ops.write_reg(hw,
-		                             IGP02E1000_PHY_POWER_MGMT,
+		ret_val = phy->ops.write_reg(hw, IGP02E1000_PHY_POWER_MGMT,
 		                             data);
 		if (ret_val)
 			goto out;
@@ -1331,22 +1318,19 @@ s32 e1000_set_d3_lplu_state_generic(struct e1000_hw *hw, bool active)
 	           (phy->autoneg_advertised == E1000_ALL_NOT_GIG) ||
 	           (phy->autoneg_advertised == E1000_ALL_10_SPEED)) {
 		data |= IGP02E1000_PM_D3_LPLU;
-		ret_val = phy->ops.write_reg(hw,
-		                              IGP02E1000_PHY_POWER_MGMT,
+		ret_val = phy->ops.write_reg(hw, IGP02E1000_PHY_POWER_MGMT,
 		                              data);
 		if (ret_val)
 			goto out;
 
 		/* When LPLU is enabled, we should disable SmartSpeed */
-		ret_val = phy->ops.read_reg(hw,
-		                             IGP01E1000_PHY_PORT_CONFIG,
+		ret_val = phy->ops.read_reg(hw, IGP01E1000_PHY_PORT_CONFIG,
 		                             &data);
 		if (ret_val)
 			goto out;
 
 		data &= ~IGP01E1000_PSCFR_SMART_SPEED;
-		ret_val = phy->ops.write_reg(hw,
-		                              IGP01E1000_PHY_PORT_CONFIG,
+		ret_val = phy->ops.write_reg(hw, IGP01E1000_PHY_PORT_CONFIG,
 		                              data);
 	}
 
@@ -1584,6 +1568,11 @@ s32 e1000_get_cable_length_m88(struct e1000_hw *hw)
 
 	index = (phy_data & M88E1000_PSSR_CABLE_LENGTH) >>
 	        M88E1000_PSSR_CABLE_LENGTH_SHIFT;
+	if (index >= M88E1000_CABLE_LENGTH_TABLE_SIZE + 1) {
+		ret_val = E1000_ERR_PHY;
+		goto out;
+	}
+
 	phy->min_cable_length = e1000_m88_cable_length_table[index];
 	phy->max_cable_length = e1000_m88_cable_length_table[index+1];
 
@@ -1707,8 +1696,7 @@ s32 e1000_get_phy_info_m88(struct e1000_hw *hw)
 		goto out;
 
 	phy->polarity_correction = (phy_data & M88E1000_PSCR_POLARITY_REVERSAL)
-	                           ? true
-	                           : false;
+	                           ? true : false;
 
 	ret_val = e1000_check_polarity_m88(hw);
 	if (ret_val)
@@ -1999,9 +1987,9 @@ s32 e1000_phy_init_script_igp3(struct e1000_hw *hw)
  *
  *  Returns the phy type from the id.
  **/
-e1000_phy_type e1000_get_phy_type_from_id(u32 phy_id)
+enum e1000_phy_type e1000_get_phy_type_from_id(u32 phy_id)
 {
-	e1000_phy_type phy_type = e1000_phy_unknown;
+	enum e1000_phy_type phy_type = e1000_phy_unknown;
 
 	switch (phy_id)	{
 	case M88E1000_I_PHY_ID:
@@ -2029,6 +2017,48 @@ e1000_phy_type e1000_get_phy_type_from_id(u32 phy_id)
 		break;
 	}
 	return phy_type;
+}
+
+/**
+ *  e1000_determine_phy_address - Determines PHY address.
+ *  @hw: pointer to the HW structure
+ *
+ *  This uses a trial and error method to loop through possible PHY
+ *  addresses. It tests each by reading the PHY ID registers and
+ *  checking for a match.
+ **/
+s32 e1000_determine_phy_address(struct e1000_hw *hw)
+{
+	s32 ret_val = -E1000_ERR_PHY_TYPE;
+	u32 phy_addr = 0;
+	u32 i;
+	enum e1000_phy_type phy_type = e1000_phy_unknown;
+
+	hw->phy.id = phy_type;
+
+	for (phy_addr = 0; phy_addr < E1000_MAX_PHY_ADDR; phy_addr++) {
+		hw->phy.addr = phy_addr;
+		i = 0;
+
+		do {
+			e1000_get_phy_id(hw);
+			phy_type = e1000_get_phy_type_from_id(hw->phy.id);
+
+			/*
+			 * If phy_type is valid, break - we found our
+			 * PHY address
+			 */
+			if (phy_type  != e1000_phy_unknown) {
+				ret_val = E1000_SUCCESS;
+				goto out;
+			}
+			msec_delay(1);
+			i++;
+		} while (i < 10);
+	}
+
+out:
+	return ret_val;
 }
 
 /**

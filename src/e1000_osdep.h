@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2008 Intel Corporation.
+  Copyright(c) 2007-2009 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -74,9 +74,7 @@
 #define DEBUGOUT3 DEBUGOUT2
 #define DEBUGOUT7 DEBUGOUT3
 
-#define E1000_REGISTER(a, reg) (((a)->mac.type < e1000_82576) \
-                               ? reg                           \
-                               : e1000_translate_register_82576(reg))
+#define E1000_REGISTER(a, reg) reg
 
 #define E1000_WRITE_REG(a, reg, value) ( \
     writel((value), ((a)->hw_addr + E1000_REGISTER(a, reg))))
