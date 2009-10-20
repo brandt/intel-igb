@@ -1,7 +1,7 @@
 ################################################################################
 #
 # Intel(R) Gigabit Ethernet Linux driver
-# Copyright(c) 2007-2008 Intel Corporation.
+# Copyright(c) 2007-2009 Intel Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -32,10 +32,11 @@ FAMILYH = e1000_82575.h
 
 # core driver files
 CFILES = igb_main.c $(FAMILYC) e1000_mac.c e1000_nvm.c e1000_phy.c \
-	 e1000_manage.c igb_param.c igb_ethtool.c kcompat.c e1000_api.c
+	 e1000_manage.c igb_param.c igb_ethtool.c kcompat.c e1000_api.c \
+	 e1000_mbx.c
 HFILES = igb.h e1000_hw.h e1000_osdep.h e1000_defines.h e1000_mac.h \
 	 e1000_nvm.h e1000_manage.h $(FAMILYH) kcompat.h e1000_regs.h \
-	 e1000_api.h igb_regtest.h
+	 e1000_api.h igb_regtest.h e1000_mbx.h
 ifeq (,$(BUILD_KERNEL))
 BUILD_KERNEL=$(shell uname -r)
 endif
@@ -186,6 +187,14 @@ KKVER := $(shell echo $(KVER) | \
 ifeq ($(KKVER), 0)
   $(error *** Aborting the build. \
           *** This driver is not supported on kernel versions older than 2.4.0)
+endif
+
+# look for PCI in config.h
+PCI := $(shell $(CC) $(EXTRA_CFLAGS) -E -dM $(CONFIG_FILE) | \
+         grep -w CONFIG_PCI | awk '{ print $$3 }')
+ifneq ($(PCI),1)
+  $(error *** Aborting the build. \
+          *** This driver requires that CONFIG_PCI is enabled)
 endif
 
 # set the install path
@@ -342,4 +351,5 @@ uninstall:
 .PHONY: clean install
 
 clean:
-	rm -rf $(TARGET) $(TARGET:.ko=.o) $(TARGET:.ko=.mod.c) $(TARGET:.ko=.mod.o) $(CFILES:.c=.o) $(MANFILE).gz .*cmd .tmp_versions
+	rm -rf $(TARGET) $(TARGET:.ko=.o) $(TARGET:.ko=.mod.c) $(TARGET:.ko=.mod.o) $(CFILES:.c=.o) \
+	$(MANFILE).gz .*cmd .tmp_versions Module.* modules.order

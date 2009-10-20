@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2008 Intel Corporation.
+  Copyright(c) 2007-2009 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -37,6 +37,10 @@ struct e1000_hw;
 #define E1000_DEV_ID_82576                    0x10C9
 #define E1000_DEV_ID_82576_FIBER              0x10E6
 #define E1000_DEV_ID_82576_SERDES             0x10E7
+#define E1000_DEV_ID_82576_QUAD_COPPER        0x10E8
+#define E1000_DEV_ID_82576_NS                 0x150A
+#define E1000_DEV_ID_82576_NS_SERDES          0x1518
+#define E1000_DEV_ID_82576_SERDES_QUAD        0x150D
 #define E1000_DEV_ID_82575EB_COPPER           0x10A7
 #define E1000_DEV_ID_82575EB_FIBER_SERDES     0x10A9
 #define E1000_DEV_ID_82575GB_QUAD_COPPER      0x10D6
@@ -48,6 +52,9 @@ struct e1000_hw;
 
 #define E1000_FUNC_0     0
 #define E1000_FUNC_1     1
+
+#define E1000_ALT_MAC_ADDRESS_OFFSET_LAN0   0
+#define E1000_ALT_MAC_ADDRESS_OFFSET_LAN1   3
 
 enum e1000_mac_type {
 	e1000_undefined = 0,
@@ -133,7 +140,7 @@ enum e1000_rev_polarity {
 	e1000_rev_polarity_undefined = 0xFF
 };
 
-enum e1000_fc_type {
+enum e1000_fc_mode {
 	e1000_fc_none = 0,
 	e1000_fc_rx_pause,
 	e1000_fc_tx_pause,
@@ -152,6 +159,13 @@ enum e1000_smart_speed {
 	e1000_smart_speed_default = 0,
 	e1000_smart_speed_on,
 	e1000_smart_speed_off
+};
+
+enum e1000_serdes_link_state {
+	e1000_serdes_link_down = 0,
+	e1000_serdes_link_autoneg_progress,
+	e1000_serdes_link_autoneg_complete,
+	e1000_serdes_link_forced_up
 };
 
 /* Receive Descriptor */
@@ -368,7 +382,9 @@ struct e1000_hw_stats {
 	u64 lenerrs;
 	u64 scvpc;
 	u64 hrmpc;
+	u64 doosync;
 };
+
 
 struct e1000_phy_stats {
 	u32 idle_errors;
@@ -419,10 +435,12 @@ struct e1000_host_mng_command_info {
 #include "e1000_phy.h"
 #include "e1000_nvm.h"
 #include "e1000_manage.h"
+#include "e1000_mbx.h"
 
 struct e1000_mac_operations {
 	/* Function pointers for the MAC. */
 	s32  (*init_params)(struct e1000_hw *);
+	s32  (*id_led_init)(struct e1000_hw *);
 	s32  (*blink_led)(struct e1000_hw *);
 	s32  (*check_for_link)(struct e1000_hw *);
 	bool (*check_mng_mode)(struct e1000_hw *hw);
@@ -430,10 +448,11 @@ struct e1000_mac_operations {
 	void (*clear_hw_cntrs)(struct e1000_hw *);
 	void (*clear_vfta)(struct e1000_hw *);
 	s32  (*get_bus_info)(struct e1000_hw *);
+	void (*set_lan_id)(struct e1000_hw *);
 	s32  (*get_link_up_info)(struct e1000_hw *, u16 *, u16 *);
 	s32  (*led_on)(struct e1000_hw *);
 	s32  (*led_off)(struct e1000_hw *);
-	void (*update_mc_addr_list)(struct e1000_hw *, u8 *, u32, u32, u32);
+	void (*update_mc_addr_list)(struct e1000_hw *, u8 *, u32);
 	s32  (*reset_hw)(struct e1000_hw *);
 	s32  (*init_hw)(struct e1000_hw *);
 	void (*shutdown_serdes)(struct e1000_hw *);
@@ -442,15 +461,15 @@ struct e1000_mac_operations {
 	s32  (*setup_led)(struct e1000_hw *);
 	void (*write_vfta)(struct e1000_hw *, u32, u32);
 	void (*mta_set)(struct e1000_hw *, u32);
-	void (*config_collision_dist)(struct e1000_hw*);
-	void (*rar_set)(struct e1000_hw*, u8*, u32);
-	s32  (*read_mac_addr)(struct e1000_hw*);
-	s32  (*validate_mdi_setting)(struct e1000_hw*);
-	s32  (*mng_host_if_write)(struct e1000_hw*, u8*, u16, u16, u8*);
+	void (*config_collision_dist)(struct e1000_hw *);
+	void (*rar_set)(struct e1000_hw *, u8*, u32);
+	s32  (*read_mac_addr)(struct e1000_hw *);
+	s32  (*validate_mdi_setting)(struct e1000_hw *);
+	s32  (*mng_host_if_write)(struct e1000_hw *, u8*, u16, u16, u8*);
 	s32  (*mng_write_cmd_header)(struct e1000_hw *hw,
                       struct e1000_host_mng_command_header*);
-	s32  (*mng_enable_host_if)(struct e1000_hw*);
-	s32  (*wait_autoneg)(struct e1000_hw*);
+	s32  (*mng_enable_host_if)(struct e1000_hw *);
+	s32  (*wait_autoneg)(struct e1000_hw *);
 };
 
 struct e1000_phy_operations {
@@ -464,11 +483,13 @@ struct e1000_phy_operations {
 	s32  (*get_cable_length)(struct e1000_hw *);
 	s32  (*get_info)(struct e1000_hw *);
 	s32  (*read_reg)(struct e1000_hw *, u32, u16 *);
+	s32  (*read_reg_locked)(struct e1000_hw *, u32, u16 *);
 	void (*release)(struct e1000_hw *);
 	s32  (*reset)(struct e1000_hw *);
 	s32  (*set_d0_lplu_state)(struct e1000_hw *, bool);
 	s32  (*set_d3_lplu_state)(struct e1000_hw *, bool);
 	s32  (*write_reg)(struct e1000_hw *, u32, u16);
+	s32  (*write_reg_locked)(struct e1000_hw *, u32, u16);
 	void (*power_up)(struct e1000_hw *);
 	void (*power_down)(struct e1000_hw *);
 };
@@ -506,6 +527,11 @@ struct e1000_mac_info {
 	u16 ifs_ratio;
 	u16 ifs_step_size;
 	u16 mta_reg_count;
+	u16 uta_reg_count;
+
+	/* Maximum size of the MTA register table in all supported adapters */
+	#define MAX_MTA_REG 128
+	u32 mta_shadow[MAX_MTA_REG];
 	u16 rar_entry_count;
 
 	u8  forced_speed_duplex;
@@ -517,6 +543,7 @@ struct e1000_mac_info {
 	bool autoneg_failed;
 	bool get_link_status;
 	bool in_ifs_mode;
+	enum e1000_serdes_link_state serdes_link_state;
 	bool serdes_has_link;
 	bool tx_pkt_filtering;
 };
@@ -585,17 +612,48 @@ struct e1000_fc_info {
 	u16 pause_time;          /* Flow control pause timer */
 	bool send_xon;           /* Flow control send XON */
 	bool strict_ieee;        /* Strict IEEE mode */
-	enum e1000_fc_type type; /* Type of flow control */
-	enum e1000_fc_type original_type;
+	enum e1000_fc_mode current_mode; /* FC mode in effect */
+	enum e1000_fc_mode requested_mode; /* FC mode requested by caller */
+};
+
+struct e1000_mbx_operations {
+	s32 (*init_params)(struct e1000_hw *hw);
+	s32 (*read)(struct e1000_hw *, u32 *, u16,  u16);
+	s32 (*write)(struct e1000_hw *, u32 *, u16, u16);
+	s32 (*read_posted)(struct e1000_hw *, u32 *, u16,  u16);
+	s32 (*write_posted)(struct e1000_hw *, u32 *, u16, u16);
+	s32 (*check_for_msg)(struct e1000_hw *, u16);
+	s32 (*check_for_ack)(struct e1000_hw *, u16);
+	s32 (*check_for_rst)(struct e1000_hw *, u16);
+};
+
+struct e1000_mbx_stats {
+	u32 msgs_tx;
+	u32 msgs_rx;
+
+	u32 acks;
+	u32 reqs;
+	u32 rsts;
+};
+
+struct e1000_mbx_info {
+	struct e1000_mbx_operations ops;
+	struct e1000_mbx_stats stats;
+	u32 timeout;
+	u32 usec_delay;
+	u16 size;
 };
 
 struct e1000_dev_spec_82575 {
 	bool sgmii_active;
+	bool global_device_reset;
 };
 
 struct e1000_dev_spec_vf {
 	u32	vf_number;
+	u32	v2p_mailbox;
 };
+
 
 struct e1000_hw {
 	void *back;
@@ -609,6 +667,7 @@ struct e1000_hw {
 	struct e1000_phy_info  phy;
 	struct e1000_nvm_info  nvm;
 	struct e1000_bus_info  bus;
+	struct e1000_mbx_info mbx;
 	struct e1000_host_mng_dhcp_cookie mng_cookie;
 
 	union {
@@ -628,6 +687,6 @@ struct e1000_hw {
 
 /* These functions must be implemented by drivers */
 s32  e1000_read_pcie_cap_reg(struct e1000_hw *hw, u32 reg, u16 *value);
-void e1000_read_pci_cfg(struct e1000_hw *hw, u32 reg, u16 *value);
+s32  e1000_write_pcie_cap_reg(struct e1000_hw *hw, u32 reg, u16 *value);
 
 #endif
