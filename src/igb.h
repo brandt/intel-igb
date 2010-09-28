@@ -43,7 +43,7 @@
 #include <linux/ethtool.h>
 #endif
 
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 #include <linux/clocksource.h>
 #include <linux/timecompare.h>
 #include <linux/net_tstamp.h>
@@ -58,7 +58,7 @@ struct igb_adapter;
 #include <linux/dca.h>
 #endif
 
-#ifndef HAVE_HW_TIME_STAMP
+#ifndef SIOCSHWTSTAMP
 #undef IGB_PER_PKT_TIMESTAMP
 #endif
 
@@ -244,8 +244,8 @@ struct igb_buffer {
 #ifdef NETIF_F_TSO
 			u16 gso_segs;
 #endif
-#ifdef HAVE_HW_TIME_STAMP
-			u8 shtx;
+#ifdef SIOCSHWTSTAMP
+			union skb_shared_tx shtx;
 #endif
 			u8 mapped_as_page;
 		};
@@ -420,7 +420,7 @@ struct igb_adapter {
 #ifdef IGB_LRO
 	struct igb_lro_stats lro_stats;
 #endif
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 	struct cyclecounter cycles;
 	struct timecounter clock;
 	struct timecompare compare;

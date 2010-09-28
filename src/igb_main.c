@@ -53,7 +53,7 @@
 #define DRV_HW_PERF
 #define VERSION_SUFFIX
 
-#define DRV_VERSION "2.4.13" VERSION_SUFFIX DRV_DEBUG DRV_HW_PERF
+#define DRV_VERSION "2.4.8" VERSION_SUFFIX DRV_DEBUG DRV_HW_PERF
 
 char igb_driver_name[] = "igb";
 char igb_driver_version[] = DRV_VERSION;
@@ -62,10 +62,6 @@ static const char igb_driver_string[] =
 static const char igb_copyright[] = "Copyright (c) 2007-2010 Intel Corporation.";
 
 static struct pci_device_id igb_pci_tbl[] = {
-	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_COPPER) },
-	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_FIBER) },
-	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_SERDES) },
-	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_SGMII) },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_COPPER) },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_FIBER) },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_SERDES) },
@@ -236,7 +232,7 @@ static void igb_vfta_set(struct e1000_hw *hw, u32 vid, bool add)
 	e1000_write_vfta(hw, index, vfta);
 }
 
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 /**
  * igb_read_clock - read raw cycle counter (to be used by time counter)
  */
@@ -342,7 +338,6 @@ static void igb_cache_ring_register(struct igb_adapter *adapter)
 		}
 	case e1000_82575:
 	case e1000_82580:
-	case e1000_i350:
 	default:
 		for (; i < adapter->num_rx_queues; i++)
 			adapter->rx_ring[i]->reg_idx = rbase_offset + i;
@@ -570,7 +565,6 @@ static void igb_assign_vector(struct igb_q_vector *q_vector, int msix_vector)
 		q_vector->eims_value = 1 << msix_vector;
 		break;
 	case e1000_82580:
-	case e1000_i350:
 		/* 82580 uses the same table-based approach as 82576 but has fewer
 		   entries as a result we carry over for queues greater than 4. */
 		if (rx_queue > IGB_N0_QUEUE) {
@@ -651,7 +645,6 @@ static void igb_configure_msix(struct igb_adapter *adapter)
 
 	case e1000_82576:
 	case e1000_82580:
-	case e1000_i350:
 		/* Turn on MSI-X capability first, or our settings
 		 * won't stick.  And it will take days to debug. */
 		E1000_WRITE_REG(hw, E1000_GPIE, E1000_GPIE_MSIX_MODE |
@@ -1532,7 +1525,6 @@ void igb_reset(struct igb_adapter *adapter)
 	 * To take effect CTRL.RST is required.
 	 */
 	switch (mac->type) {
-	case e1000_i350:
 	case e1000_82580:
 		pba = E1000_READ_REG(hw, E1000_RXPBS);
 		pba = e1000_rxpbs_adjust_82580(pba);
@@ -1880,7 +1872,7 @@ static int __devinit igb_probe(struct pci_dev *pdev,
 		dev_err(pci_dev_to_dev(pdev), "NVM Read Error\n");
 
 	memcpy(netdev->dev_addr, hw->mac.addr, netdev->addr_len);
-#ifdef HAVE_ETHTOOL_GET_PERM_ADDR
+#ifdef ETHTOOL_GPERMADDR
 	memcpy(netdev->perm_addr, hw->mac.addr, netdev->addr_len);
 
 	if (!is_valid_ether_addr(netdev->perm_addr)) {
@@ -1968,6 +1960,8 @@ static int __devinit igb_probe(struct pci_dev *pdev,
 	 * driver. */
 	igb_get_hw_control(adapter);
 
+	netif_tx_stop_all_queues(netdev);
+
 	strncpy(netdev->name, "eth%d", IFNAMSIZ);
 	err = register_netdev(netdev);
 	if (err)
@@ -1984,9 +1978,8 @@ static int __devinit igb_probe(struct pci_dev *pdev,
 	}
 
 #endif
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 	switch (hw->mac.type) {
-	case e1000_i350:
 	case e1000_82580:
 		memset(&adapter->cycles, 0, sizeof(adapter->cycles));
 		adapter->cycles.read = igb_read_clock;
@@ -2626,7 +2619,6 @@ static void igb_setup_mrqc(struct igb_adapter *adapter)
 	if (adapter->vfs_allocated_count || adapter->vmdq_pools) {
 		/* 82575 and 82576 supports 2 RSS queues for VMDq */
 		switch (hw->mac.type) {
-		case e1000_i350:
 		case e1000_82580:
 			num_rx_queues = 1;
 			shift = 0;
@@ -3935,12 +3927,8 @@ static inline int igb_tx_map(struct igb_ring *tx_ring, struct sk_buff *skb,
 	}
 
 	tx_ring->buffer_info[i].skb = skb;
-#ifdef HAVE_HW_TIME_STAMP
-#ifdef SKB_SHARED_TX_IS_UNION
-	tx_ring->buffer_info[i].shtx = skb_shinfo(skb)->tx_flags.flags;
-#else
+#ifdef SIOCSHWTSTAMP
 	tx_ring->buffer_info[i].shtx = skb_shinfo(skb)->tx_flags;
-#endif
 #endif
 #ifdef NETIF_F_TSO
 	/* multiply data chunks by size of headers */
@@ -4083,6 +4071,9 @@ netdev_tx_t igb_xmit_frame_ring(struct sk_buff *skb,
 	u32 tx_flags = 0;
 	u16 first;
 	u8 hdr_len = 0;
+#ifdef SIOCSHWTSTAMP
+	union skb_shared_tx *shtx = skb_tx(skb);
+#endif
 
 	/* need: 1 descriptor per page,
 	 *       + 2 desc gap to keep tail from touching head,
@@ -4094,18 +4085,11 @@ netdev_tx_t igb_xmit_frame_ring(struct sk_buff *skb,
 		return NETDEV_TX_BUSY;
 	}
 
-#ifdef HAVE_HW_TIME_STAMP
-#ifdef SKB_SHARED_TX_IS_UNION
-	if (unlikely(skb_shinfo(skb)->tx_flags.flags & SKBTX_HW_TSTAMP)) {
-		skb_shinfo(skb)->tx_flags.flags |= SKBTX_IN_PROGRESS;
+#ifdef SIOCSHWTSTAMP
+	if (unlikely(shtx->hardware)) {
+		shtx->in_progress = 1;
 		tx_flags |= IGB_TX_FLAGS_TSTAMP;
 	}
-#else
-	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP)) {
-		skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
-		tx_flags |= IGB_TX_FLAGS_TSTAMP;
-	}
-#endif
 
 #endif
 	if (vlan_enable && vlan_tx_tag_present(skb)) {
@@ -5373,7 +5357,7 @@ static int igb_poll(struct napi_struct *napi, int budget)
 	return work_done;
 }
 
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 /**
  * igb_systim_to_hwtstamp - convert system time value to hw timestamp
  * @adapter: board private structure
@@ -5420,7 +5404,7 @@ static void igb_tx_hwtstamp(struct igb_q_vector *q_vector, struct igb_buffer *bu
 	u64 regval;
 
 	/* if skb does not support hw timestamp or TX stamp not valid exit */
-	if (likely(!buffer_info->shtx & SKBTX_HW_TSTAMP) ||
+	if (likely(!buffer_info->shtx.hardware) ||
 	    !(E1000_READ_REG(hw, E1000_TSYNCTXCTL) & E1000_TSYNCTXCTL_VALID))
 		return;
 
@@ -5470,7 +5454,7 @@ static bool igb_clean_tx_irq(struct igb_q_vector *q_vector, int budget)
 #else
 				total_packets++;
 #endif
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 				igb_tx_hwtstamp(q_vector, buffer_info);
 #endif
 			}
@@ -5602,7 +5586,7 @@ static inline void igb_rx_checksum(struct igb_ring *ring,
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 }
 
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 static void igb_rx_hwtstamp(struct igb_q_vector *q_vector, u32 staterr,
                                    struct sk_buff *skb)
 {
@@ -6080,7 +6064,7 @@ static void igb_clean_rx_irq(struct igb_q_vector *q_vector,
 			goto next_desc;
 		}
 
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 		if (staterr & (E1000_RXDADV_STAT_TSIP | E1000_RXDADV_STAT_TS))
 			igb_rx_hwtstamp(q_vector, staterr, skb);
 #endif
@@ -6268,7 +6252,7 @@ static int igb_mii_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 }
 
 #endif
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 /**
  * igb_hwtstamp_ioctl - control hardware time stamping
  * @netdev:
@@ -6461,7 +6445,7 @@ static int igb_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 	case SIOCSMIIREG:
 		return igb_mii_ioctl(netdev, ifr, cmd);
 #endif
-#ifdef HAVE_HW_TIME_STAMP
+#ifdef SIOCSHWTSTAMP
 	case SIOCSHWTSTAMP:
 		return igb_hwtstamp_ioctl(netdev, ifr, cmd);
 #endif

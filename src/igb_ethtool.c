@@ -978,10 +978,6 @@ static int igb_reg_test(struct igb_adapter *adapter, u64 *data)
 	u32 i, toggle;
 
 	switch (adapter->hw.mac.type) {
-	case e1000_i350:
-		test = reg_test_i350;
-		toggle = 0x7FEFF3FF;
-		break;
 	case e1000_82580:
 		test = reg_test_82580;
 		toggle = 0x7FEFF3FF;
@@ -1141,9 +1137,6 @@ static int igb_intr_test(struct igb_adapter *adapter, u64 *data)
 		ics_mask = 0x77D4FBFD;
 		break;
 	case e1000_82580:
-		ics_mask = 0x77DCFED5;
-		break;
-	case e1000_i350:
 		ics_mask = 0x77DCFED5;
 		break;
 	default:
@@ -2092,7 +2085,7 @@ static struct ethtool_ops igb_ethtool_ops = {
 	.self_test_count        = igb_diag_test_count,
 #endif
 	.get_ethtool_stats      = igb_get_ethtool_stats,
-#ifdef HAVE_ETHTOOL_GET_PERM_ADDR
+#ifdef ETHTOOL_GPERMADDR
 	.get_perm_addr          = ethtool_op_get_perm_addr,
 #endif
 	.get_coalesce           = igb_get_coalesce,

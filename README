@@ -1,7 +1,7 @@
 Linux* Base Driver for Intel(R) Network Connection
 ==================================================
 
-February 8, 2011
+January 4, 2010
 
 Contents
 ========
@@ -54,7 +54,8 @@ Driver ID Guide at:
     http://support.intel.com/support/go/network/adapter/idguide.htm
 
 For the latest Intel network drivers for Linux, refer to the following
-website.  Select the link for your adapter.
+website.  In the search field, enter your adapter name or type, or use the
+networking link on the left to search for your adapter:
 
     http://support.intel.com/support/go/network/adapter/home.htm
 
@@ -339,8 +340,8 @@ This option can be overridden to 1 if there are not sufficient interrupts
 available.  This can occur if any combination of RSS, VMDQ, and max_vfs 
 results in more than 4 queues being used.
 
-Node
-----
+NUMA Node
+---------
 Valid Range:   0-n
 Default Value: -1 (off)
 
@@ -349,22 +350,13 @@ Default Value: -1 (off)
   -1: uses the driver default of allocating memory on whichever processor is
       running insmod/modprobe. 
 
-  The Node parameter will allow you to pick which NUMA node you want to have 
+  The NUMA Node parameter will allow you to pick which NUMA node you want to have 
   the adapter allocate memory from.  All driver structures, in-memory queues, 
   and receive buffers will be allocated on the node specified.  This parameter
   is only useful when interrupt affinity is specified, otherwise some portion 
   of the time the interrupt could run on a different core than the memory is 
   allocated on, causing slower memory access and impacting throughput, CPU, or
   both.
-
-EEE
----
-Valid Range:  0-1
-Default Value: 1 (enabled)
-
-  A link between two EEE-compliant devices will result in periodic bursts of 
-  data followed by long periods where in the link is in an idle state. This Low
-  Power Idle (LPI) state is supported in both 1Gbps and 100Mbps link speeds.
  
 
 Additional Configurations
@@ -516,14 +508,6 @@ Additional Configurations
 Known Issues/Troubleshooting
 ============================
 
-For known hardware and troubleshooting issues, refer to the following website.
-
-    http://support.intel.com/support/go/network/adapter/home.htm
-
-Either select the link for your adapter or perform a search for the adapter 
-number. The adapter's page lists many issues. For a complete list of hardware
-issues download your adapter's user guide and read the Release Notes.  
-
   NOTE: After installing the driver, if your Intel Network Connection is not 
   working, verify in the "In This Release" section of the readme that you have 
   installed the correct driver.
@@ -667,29 +651,6 @@ issues download your adapter's user guide and read the Release Notes.
   Otherwise the driver can be loaded once and will be safe, but unloading it 
   will lead to the issue.
 
-  Enabling SR-IOV in a 32-bit Microsoft* Windows* Server 2008 Guest OS using
-  Intel (R) 82576-based GbE or Intel (R) 82599-based 10GbE controller under KVM
-  -----------------------------------------------------------------------------
-  KVM Hypervisor/VMM supports direct assignment of a PCIe device to a VM.  This 
-  includes traditional PCIe devices, as well as SR-IOV-capable devices using
-  Intel 82576-based and 82599-based controllers.
-
-  While direct assignment of a PCIe device or an SR-IOV Virtual Function (VF)
-  to a Linux-based VM running 2.6.32 or later kernel works fine, there is a
-  known issue with Microsoft Windows Server 2008 VM that results in a "yellow 
-  bang" error. This problem is within the KVM VMM itself, not the Intel driver,
-  or the SR-IOV logic of the VMM, but rather that KVM emulates an older CPU 
-  model for the guests, and this older CPU model does not support MSI-X
-  interrupts, which is a requirement for Intel SR-IOV.  
-
-  If you wish to use the Intel 82576 or 82599-based controllers in SR-IOV mode
-  with KVM and a Microsoft Windows Server 2008 guest try the following 
-  workaround. The workaround is to tell KVM to emulate a different model of CPU
-  when using qemu to create the KVM guest: 
-
-       "-cpu qemu64,model=13"
-
-
 Support
 =======
 
@@ -709,7 +670,7 @@ License
 =======
 
 Intel Gigabit Linux driver.
-Copyright(c) 1999 - 2011 Intel Corporation.
+Copyright(c) 1999 - 2010 Intel Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms and conditions of the GNU General Public License,

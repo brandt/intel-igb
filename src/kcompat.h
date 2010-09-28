@@ -184,6 +184,12 @@ struct msix_entry {
 #define NETDEV_TX_LOCKED -1
 #endif
 
+#ifdef CONFIG_PCI_IOV
+#define VMDQ_P(p)   ((p) + adapter->num_vfs)
+#else
+#define VMDQ_P(p)   (p)
+#endif
+
 #ifndef SKB_DATAREF_SHIFT
 /* if we do not have the infrastructure to detect if skb_header is cloned
    just return false in all cases */
@@ -207,6 +213,14 @@ struct msix_entry {
 
 #ifndef NETIF_F_LRO
 #define NETIF_F_LRO (1 << 15)
+#endif
+
+#ifndef ETH_FLAG_LRO
+#define ETH_FLAG_LRO (1 << 15)
+#endif
+
+#ifndef ETH_FLAG_NTUPLE
+#define ETH_FLAG_NTUPLE 0
 #endif
 
 #ifndef IPPROTO_SCTP
@@ -339,6 +353,23 @@ enum {
 #endif
 #endif
 
+#ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
+#ifdef NET_IP_ALIGN
+#undef NET_IP_ALIGN
+#endif
+#ifdef NET_SKB_PAD
+#undef NET_SKB_PAD
+#endif
+#ifdef netdev_alloc_skb_ip_align
+#undef netdev_alloc_skb_ip_align
+#endif
+extern struct sk_buff *_kc_netdev_alloc_skb_ip_align(struct net_device *dev,
+                                                     unsigned int length);
+#define NET_IP_ALIGN 0
+#define NET_SKB_PAD L1_CACHE_BYTES
+#define netdev_alloc_skb_ip_align(n, l) _kc_netdev_alloc_skb_ip_align(n, l)
+#endif /* CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS */
+
 /* taken from 2.6.24 definition in linux/kernel.h */
 #ifndef IS_ALIGNED
 #define IS_ALIGNED(x,a)         (((x) % ((typeof(x))(a))) == 0)
@@ -353,11 +384,6 @@ struct _kc_vlan_ethhdr {
 	__be16		h_vlan_encapsulated_proto;
 };
 #define vlan_ethhdr _kc_vlan_ethhdr
-struct _kc_vlan_hdr {
-	__be16		h_vlan_TCI;
-	__be16		h_vlan_encapsulated_proto;
-};
-#define vlan_hdr _kc_vlan_hdr
 #define vlan_tx_tag_present(_skb) 0
 #define vlan_tx_tag_get(_skb) 0
 #endif
@@ -700,34 +726,14 @@ struct _kc_ethtool_pauseparam {
 #define RHEL_RELEASE_CODE 0
 #endif
 #ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(a,b) (((a) << 8) + (b))
+#define RHEL_RELEASE_VERSION(a,b) 0
 #endif
 #ifndef AX_RELEASE_CODE
 #define AX_RELEASE_CODE 0
 #endif
 #ifndef AX_RELEASE_VERSION
-#define AX_RELEASE_VERSION(a,b) (((a) << 8) + (b))
+#define AX_RELEASE_VERSION(a,b) 0
 #endif
-
-/* SuSE version macro is the same as Linux kernel verison */
-#ifndef SLE_VERSION
-#define SLE_VERSION(a,b,c) KERNEL_VERSION(a,b,c)
-#endif
-#ifndef SLE_VERSION_CODE
-#ifdef CONFIG_SUSE_KERNEL
-/* SLES11 GA is 2.6.27 based */
-#if ( LINUX_VERSION_CODE == KERNEL_VERSION(2,6,27) )
-#define SLE_VERSION_CODE SLE_VERSION(11,0,0)
-#elif ( LINUX_VERSION_CODE == KERNEL_VERSION(2,6,32) )
-/* SLES11 SP1 is 2.6.32 based */
-#define SLE_VERSION_CODE SLE_VERSION(11,1,0)
-#else
-#define SLE_VERSION_CODE 0
-#endif
-#else /* CONFIG_SUSE_KERNEL */
-#define SLE_VERSION_CODE 0
-#endif /* CONFIG_SUSE_KERNEL */
-#endif /* SLE_VERSION_CODE */
 
 /*****************************************************************************/
 /* 2.4.3 => 2.4.0 */
@@ -1029,8 +1035,6 @@ static inline void _kc_netif_tx_disable(struct net_device *dev)
 	spin_unlock_bh(&dev->xmit_lock);
 }
 #endif
-#else /* 2.4.23 => 2.4.22 */
-#define HAVE_SCTP
 #endif /* 2.4.23 => 2.4.22 */
 
 /*****************************************************************************/
@@ -1429,12 +1433,6 @@ static inline unsigned long _kc_msleep_interruptible(unsigned int msecs)
 #ifndef __be16
 #define __be16 u16
 #endif
-#ifndef __be32
-#define __be32 u32
-#endif
-#ifndef __be64
-#define __be64 u64
-#endif
 
 static inline struct vlan_ethhdr *vlan_eth_hdr(const struct sk_buff *skb)
 {
@@ -1450,24 +1448,6 @@ static inline struct vlan_ethhdr *vlan_eth_hdr(const struct sk_buff *skb)
 #define WAKE_MAGIC		(1 << 5)
 #define WAKE_MAGICSECURE	(1 << 6) /* only meaningful if WAKE_MAGIC */
 
-#define skb_header_pointer _kc_skb_header_pointer
-static inline void *_kc_skb_header_pointer(const struct sk_buff *skb,
-					    int offset, int len, void *buffer)
-{
-	int hlen = skb_headlen(skb);
-
-	if (hlen - offset >= len)
-		return skb->data + offset;
-
-#ifdef MAX_SKB_FRAGS
-	if (skb_copy_bits(skb, offset, buffer, len) < 0)
-		return NULL;
-
-	return buffer;
-#else
-	return NULL;
-#endif
-}
 #endif /* < 2.6.9 */
 
 /*****************************************************************************/
@@ -1679,14 +1659,10 @@ static inline int _kc_skb_is_gso(const struct sk_buff *skb)
 #define DIV_ROUND_UP(n,d) (((n) + (d) - 1) / (d))
 #endif
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0) )
-#if (!((RHEL_RELEASE_CODE && \
-        ((RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(4,4) && \
-          RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,0)) || \
-         (RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(5,0)))) || \
-       (AX_RELEASE_CODE && AX_RELEASE_CODE > AX_RELEASE_VERSION(3,0))))
+#if (!(( RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(4,4) ) && ( RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,0) ) || ( RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(5,0) ) || (AX_RELEASE_CODE > AX_RELEASE_VERSION(3,0))))
 typedef irqreturn_t (*irq_handler_t)(int, void*, struct pt_regs *);
 #endif
-#if (RHEL_RELEASE_CODE && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(6,0))
+#if (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(6,0))
 #undef CONFIG_INET_LRO
 #undef CONFIG_INET_LRO_MODULE
 #ifdef IXGBE_FCOE
@@ -1775,7 +1751,7 @@ do { \
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,21) )
 #define to_net_dev(class) container_of(class, struct net_device, class_dev)
 #define NETDEV_CLASS_DEV
-#if (!(RHEL_RELEASE_CODE && RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(5,5)))
+#if (!(RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(5,5)))
 #define vlan_group_get_device(vg, id) (vg->vlan_devices[id])
 #define vlan_group_set_device(vg, id, dev)		\
 	do {						\
@@ -1833,7 +1809,7 @@ static inline struct udphdr *_udp_hdr(const struct sk_buff *skb)
 #endif
 #define cpu_to_be16(x) __constant_htons(x)
 
-#if (!(RHEL_RELEASE_CODE && RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(5,1)))
+#if (!(RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(5,1)))
 enum {
 	DUMP_PREFIX_NONE,
 	DUMP_PREFIX_ADDRESS,
@@ -1856,6 +1832,7 @@ extern void _kc_print_hex_dump(const char *level, const char *prefix_str,
 
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE > KERNEL_VERSION(2,6,22) )
+#undef ETHTOOL_GPERMADDR
 #undef SET_MODULE_OWNER
 #define SET_MODULE_OWNER(dev) do { } while (0)
 #endif /* > 2.6.22 */
@@ -1870,18 +1847,10 @@ extern void _kc_print_hex_dump(const char *level, const char *prefix_str,
 #ifndef CONFIG_PM_SLEEP
 #define CONFIG_PM_SLEEP	CONFIG_PM
 #endif
-
-#if ( LINUX_VERSION_CODE > KERNEL_VERSION(2,6,13) )
-#define HAVE_ETHTOOL_GET_PERM_ADDR
-#endif /* 2.6.14 through 2.6.22 */
 #endif /* < 2.6.23 */
 
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) )
-#ifndef ETH_FLAG_LRO
-#define ETH_FLAG_LRO (1 << 15)
-#endif
-
 /* if GRO is supported then the napi struct must already exist */
 #ifndef NETIF_F_GRO
 /* NAPI API changes in 2.6.24 break everything */
@@ -2024,14 +1993,7 @@ extern void _kc_pci_disable_link_state(struct pci_dev *dev, int state);
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,27) )
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15) )
-#if ((LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)) && defined(CONFIG_PM))
-#define ANCIENT_PM 1
-#elif ((LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)) && \
-       (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)) && \
-       defined(CONFIG_PM_SLEEP))
-#define NEWER_PM 1
-#endif
-#if defined(ANCIENT_PM) || defined(NEWER_PM)
+#if (((LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)) && defined(CONFIG_PM)) || ((LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)) && defined(CONFIG_PM_SLEEP)))
 #undef device_set_wakeup_enable
 #define device_set_wakeup_enable(dev, val) \
 	do { \
@@ -2234,18 +2196,14 @@ extern u16 _kc_skb_tx_hash(struct net_device *dev, struct sk_buff *skb);
 
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33) )
+#ifndef netdev_alloc_skb_ip_align
+extern struct sk_buff *_kc_netdev_alloc_skb_ip_align(struct net_device *dev,
+                                                     unsigned int length);
+#define netdev_alloc_skb_ip_align(n, l) _kc_netdev_alloc_skb_ip_align(n, l)
+#endif
 #ifndef pci_pcie_cap
 #define pci_pcie_cap(pdev) pci_find_capability(pdev, PCI_CAP_ID_EXP)
 #endif
-/* Features back-ported to RHEL6 or SLES11 SP1 after 2.6.32 */
-#if ( (RHEL_RELEASE_CODE && RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(6,0)) || \
-      (SLE_VERSION_CODE && SLE_VERSION_CODE >= SLE_VERSION(11,1,0)) )
-#if defined(CONFIG_FCOE) || defined(CONFIG_FCOE_MODULE)
-#ifndef HAVE_NETDEV_OPS_FCOE_GETWWN
-#define HAVE_NETDEV_OPS_FCOE_GETWWN
-#endif
-#endif /* CONFIG_FCOE || CONFIG_FCOE_MODULE */
-#endif /* RHEL6 or SLES11 SP1 */
 #else /* < 2.6.33 */
 #if defined(CONFIG_FCOE) || defined(CONFIG_FCOE_MODULE)
 #ifndef HAVE_NETDEV_OPS_FCOE_GETWWN
@@ -2257,10 +2215,6 @@ extern u16 _kc_skb_tx_hash(struct net_device *dev, struct sk_buff *skb);
 
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34) )
-#ifndef ETH_FLAG_NTUPLE
-#define ETH_FLAG_NTUPLE (1 << 27)
-#endif
-
 #ifndef netdev_mc_count
 #define netdev_mc_count(dev) ((dev)->mc_count)
 #endif
@@ -2400,74 +2354,8 @@ void _kc_netif_set_real_num_tx_queues(struct net_device *, unsigned int);
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36) )
 extern int _kc_ethtool_op_set_flags(struct net_device *, u32, u32);
 #define ethtool_op_set_flags _kc_ethtool_op_set_flags
-
-#ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
-#ifdef NET_IP_ALIGN
-#undef NET_IP_ALIGN
-#endif
-#define NET_IP_ALIGN 0
-#endif /* CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS */
-
-#ifdef NET_SKB_PAD
-#undef NET_SKB_PAD
-#endif
-
-#if (L1_CACHE_BYTES > 32)
-#define NET_SKB_PAD L1_CACHE_BYTES
-#else
-#define NET_SKB_PAD 32
-#endif
-
-static inline struct sk_buff *_kc_netdev_alloc_skb_ip_align(struct net_device *dev,
-							    unsigned int length)
-{
-	struct sk_buff *skb;
-
-	skb = alloc_skb(length + NET_SKB_PAD + NET_IP_ALIGN, GFP_ATOMIC);
-	if (skb) {
-#if (NET_IP_ALIGN + NET_SKB_PAD)
-		skb_reserve(skb, NET_IP_ALIGN + NET_SKB_PAD);
-#endif
-		skb->dev = dev;
-	}
-	return skb;
-}
-
-#ifdef netdev_alloc_skb_ip_align
-#undef netdev_alloc_skb_ip_align
-#endif
-#define netdev_alloc_skb_ip_align(n, l) _kc_netdev_alloc_skb_ip_align(n, l)
 #else /* < 2.6.36 */
 #define HAVE_PM_QOS_REQUEST_ACTIVE
 #define HAVE_8021P_SUPPORT
 #endif /* < 2.6.36 */
-
-/*****************************************************************************/
-#if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37) )
-#ifndef VLAN_N_VID
-#define VLAN_N_VID	VLAN_GROUP_ARRAY_LEN
-#endif /* VLAN_N_VID */
-#ifndef ETH_FLAG_TXVLAN
-#define ETH_FLAG_TXVLAN (1 << 7)
-#endif /* ETH_FLAG_TXVLAN */
-#ifndef ETH_FLAG_RXVLAN
-#define ETH_FLAG_RXVLAN (1 << 8)
-#endif /* ETH_FLAG_RXVLAN */
-
-static inline void _kc_skb_checksum_none_assert(struct sk_buff *skb)
-{
-	WARN_ON(skb->ip_summed != CHECKSUM_NONE);
-}
-#define skb_checksum_none_assert(skb) _kc_skb_checksum_none_assert(skb)
-
-#ifdef HAVE_HW_TIME_STAMP
-#define SKBTX_HW_TSTAMP (1 << 0)
-#define SKBTX_IN_PROGRESS (1 << 2)
-#define SKB_SHARED_TX_IS_UNION
-#endif
-#endif /* < 2.6.37 */
-/*****************************************************************************/
-#if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38) )
-#define VLAN_GROUP_ARRAY_LEN 4096
-#endif /* < 2.6.38 > */
 #endif /* _KCOMPAT_H_ */
