@@ -171,6 +171,12 @@ s32 e1000_set_mac_type(struct e1000_hw *hw)
 	case E1000_DEV_ID_82580_QUAD_FIBER:
 		mac->type = e1000_82580;
 		break;
+	case E1000_DEV_ID_I350_COPPER:
+	case E1000_DEV_ID_I350_FIBER:
+	case E1000_DEV_ID_I350_SERDES:
+	case E1000_DEV_ID_I350_SGMII:
+		mac->type = e1000_i350;
+		break;
 	default:
 		/* Should never have loaded on this device */
 		ret_val = -E1000_ERR_MAC_INIT;
@@ -226,6 +232,7 @@ s32 e1000_setup_init_funcs(struct e1000_hw *hw, bool init_device)
 	case e1000_82575:
 	case e1000_82576:
 	case e1000_82580:
+	case e1000_i350:
 		e1000_init_function_pointers_82575(hw);
 		break;
 	default:
@@ -941,18 +948,34 @@ s32 e1000_read_mac_addr(struct e1000_hw *hw)
 }
 
 /**
- *  e1000_read_pba_num - Read device part number
+ *  e1000_read_pba_string - Read device part number string
  *  @hw: pointer to the HW structure
  *  @pba_num: pointer to device part number
+ *  @pba_num_size: size of part number buffer
  *
  *  Reads the product board assembly (PBA) number from the EEPROM and stores
  *  the value in pba_num.
  *  Currently no func pointer exists and all implementations are handled in the
  *  generic version of this function.
  **/
-s32 e1000_read_pba_num(struct e1000_hw *hw, u32 *pba_num)
+s32 e1000_read_pba_string(struct e1000_hw *hw, u8 *pba_num, u32 pba_num_size)
 {
-	return e1000_read_pba_num_generic(hw, pba_num);
+	return e1000_read_pba_string_generic(hw, pba_num, pba_num_size);
+}
+
+/**
+ *  e1000_read_pba_length - Read device part number string length
+ *  @hw: pointer to the HW structure
+ *  @pba_num_size: size of part number buffer
+ *
+ *  Reads the product board assembly (PBA) number length from the EEPROM and
+ *  stores the value in pba_num.
+ *  Currently no func pointer exists and all implementations are handled in the
+ *  generic version of this function.
+ **/
+s32 e1000_read_pba_length(struct e1000_hw *hw, u32 *pba_num_size)
+{
+	return e1000_read_pba_length_generic(hw, pba_num_size);
 }
 
 /**

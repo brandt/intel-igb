@@ -77,6 +77,7 @@ static void e1000_power_down_phy_copper_82575(struct e1000_hw *hw);
 static void e1000_shutdown_serdes_link_82575(struct e1000_hw *hw);
 static void e1000_power_up_serdes_link_82575(struct e1000_hw *hw);
 static s32 e1000_set_pcie_completion_timeout(struct e1000_hw *hw);
+static s32 e1000_reset_mdicnfg_82580(struct e1000_hw *hw);
 
 static const u16 e1000_82580_rxpbs_table[] =
 	{ 36, 72, 144, 1, 2, 4, 8, 16,
@@ -106,6 +107,7 @@ static bool e1000_sgmii_uses_mdio_82575(struct e1000_hw *hw)
 		ext_mdio = !!(reg & E1000_MDIC_DEST);
 		break;
 	case e1000_82580:
+	case e1000_i350:
 		reg = E1000_READ_REG(hw, E1000_MDICNFG);
 		ext_mdio = !!(reg & E1000_MDICNFG_EXT_MDIO);
 		break;
@@ -123,6 +125,7 @@ static s32 e1000_init_phy_params_82575(struct e1000_hw *hw)
 {
 	struct e1000_phy_info *phy = &hw->phy;
 	s32 ret_val = E1000_SUCCESS;
+	u32 ctrl_ext;
 
 	DEBUGFUNC("e1000_init_phy_params_82575");
 
@@ -143,10 +146,18 @@ static s32 e1000_init_phy_params_82575(struct e1000_hw *hw)
 	phy->ops.get_cfg_done       = e1000_get_cfg_done_82575;
 	phy->ops.release            = e1000_release_phy_82575;
 
-	if (e1000_sgmii_active_82575(hw))
+	ctrl_ext = E1000_READ_REG(hw, E1000_CTRL_EXT);
+
+	if (e1000_sgmii_active_82575(hw)) {
 		phy->ops.reset      = e1000_phy_hw_reset_sgmii_82575;
-	else
+		ctrl_ext |= E1000_CTRL_I2C_ENA;
+	} else {
 		phy->ops.reset      = e1000_phy_hw_reset_generic;
+		ctrl_ext &= ~E1000_CTRL_I2C_ENA;
+	}
+
+	E1000_WRITE_REG(hw, E1000_CTRL_EXT, ctrl_ext);
+	e1000_reset_mdicnfg_82580(hw);
 		
 	if (e1000_sgmii_active_82575(hw) && !e1000_sgmii_uses_mdio_82575(hw)) {
 		phy->ops.read_reg   = e1000_read_phy_reg_sgmii_82575;
@@ -182,6 +193,7 @@ static s32 e1000_init_phy_params_82575(struct e1000_hw *hw)
 		phy->ops.set_d3_lplu_state  = e1000_set_d3_lplu_state_generic;
 		break;
 	case I82580_I_PHY_ID:
+	case I350_I_PHY_ID:
 		phy->type                   = e1000_phy_82580;
 		phy->ops.check_polarity     = e1000_check_polarity_82577;
 		phy->ops.force_speed_duplex = e1000_phy_force_speed_duplex_82577;
@@ -281,19 +293,14 @@ static s32 e1000_init_mac_params_82575(struct e1000_hw *hw)
 	switch (ctrl_ext & E1000_CTRL_EXT_LINK_MODE_MASK) {
 	case E1000_CTRL_EXT_LINK_MODE_SGMII:
 		dev_spec->sgmii_active = true;
-		ctrl_ext |= E1000_CTRL_I2C_ENA;
 		break;
 	case E1000_CTRL_EXT_LINK_MODE_1000BASE_KX:
 	case E1000_CTRL_EXT_LINK_MODE_PCIE_SERDES:
 		hw->phy.media_type = e1000_media_type_internal_serdes;
-		ctrl_ext |= E1000_CTRL_I2C_ENA;
 		break;
 	default:
-		ctrl_ext &= ~E1000_CTRL_I2C_ENA;
 		break;
 	}
-
-	E1000_WRITE_REG(hw, E1000_CTRL_EXT, ctrl_ext);
 
 	/* Set mta register count */
 	mac->mta_reg_count = 128;
@@ -305,6 +312,10 @@ static s32 e1000_init_mac_params_82575(struct e1000_hw *hw)
 		mac->rar_entry_count = E1000_RAR_ENTRIES_82576;
 	if (mac->type == e1000_82580)
 		mac->rar_entry_count = E1000_RAR_ENTRIES_82580;
+	if (mac->type == e1000_i350) {
+		mac->rar_entry_count = E1000_RAR_ENTRIES_I350;
+	}
+
 	/* Set if part includes ASF firmware */
 	mac->asf_firmware_present = true;
 	/* FWSM register */
@@ -537,6 +548,7 @@ static s32 e1000_get_phy_id_82575(struct e1000_hw *hw)
 			phy->addr = mdic >> E1000_MDIC_PHY_SHIFT;
 			break;
 		case e1000_82580:
+		case e1000_i350:
 			mdic = E1000_READ_REG(hw, E1000_MDICNFG);
 			mdic &= E1000_MDICNFG_PHY_MASK;
 			phy->addr = mdic >> E1000_MDICNFG_PHY_SHIFT;

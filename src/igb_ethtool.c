@@ -113,10 +113,8 @@ static const struct igb_stats igb_gstrings_net_stats[] = {
 	IGB_NETDEV_STAT(tx_heartbeat_errors)
 };
 
-#define IGB_GLOBAL_STATS_LEN	\
-	(sizeof(igb_gstrings_stats) / sizeof(struct igb_stats))
-#define IGB_NETDEV_STATS_LEN	\
-	(sizeof(igb_gstrings_net_stats) / sizeof(struct igb_stats))
+#define IGB_GLOBAL_STATS_LEN ARRAY_SIZE(igb_gstrings_stats)
+#define IGB_NETDEV_STATS_LEN ARRAY_SIZE(igb_gstrings_net_stats)
 #define IGB_RX_QUEUE_STATS_LEN \
 	(sizeof(struct igb_rx_queue_stats) / sizeof(u64))
 #define IGB_TX_QUEUE_STATS_LEN \
@@ -980,6 +978,10 @@ static int igb_reg_test(struct igb_adapter *adapter, u64 *data)
 	u32 i, toggle;
 
 	switch (adapter->hw.mac.type) {
+	case e1000_i350:
+		test = reg_test_i350;
+		toggle = 0x7FEFF3FF;
+		break;
 	case e1000_82580:
 		test = reg_test_82580;
 		toggle = 0x7FEFF3FF;
@@ -1139,6 +1141,9 @@ static int igb_intr_test(struct igb_adapter *adapter, u64 *data)
 		ics_mask = 0x77D4FBFD;
 		break;
 	case e1000_82580:
+		ics_mask = 0x77DCFED5;
+		break;
+	case e1000_i350:
 		ics_mask = 0x77DCFED5;
 		break;
 	default:
@@ -2028,7 +2033,11 @@ static int igb_set_flags(struct net_device *netdev, u32 data)
 {
 	struct igb_adapter *adapter = netdev_priv(netdev);
 	int i;
-	ethtool_op_set_flags(netdev, data);
+	int rc;
+
+	rc = ethtool_op_set_flags(netdev, data, ETH_FLAG_LRO);
+	if (rc)
+		return rc;
 
 	/* enable / disable LRO for all of the applicable rx queues */
 	for (i = 0; i < adapter->rss_queues; i++) {
@@ -2038,8 +2047,8 @@ static int igb_set_flags(struct net_device *netdev, u32 data)
 		else
 			clear_bit(IGB_RING_FLAG_RX_LRO, &ring->flags);
 	}
-	return 0;
 
+	return 0;
 }
 
 #endif /* ETHTOOL_GFLAGS */
@@ -2088,16 +2097,12 @@ static struct ethtool_ops igb_ethtool_ops = {
 #endif
 	.get_coalesce           = igb_get_coalesce,
 	.set_coalesce           = igb_set_coalesce,
-#ifdef NETIF_F_LRO
 #ifdef ETHTOOL_GFLAGS
-	.get_flags              = ethtool_op_get_flags,
 #ifdef IGB_LRO
+	.get_flags              = ethtool_op_get_flags,
 	.set_flags              = igb_set_flags,
-#else
-	.set_flags              = ethtool_op_set_flags,
 #endif
 #endif /* ETHTOOL_GFLAGS */
-#endif /* NETIF_F_LRO */
 };
 
 void igb_set_ethtool_ops(struct net_device *netdev)
