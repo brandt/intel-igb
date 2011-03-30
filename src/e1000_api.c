@@ -169,7 +169,18 @@ s32 e1000_set_mac_type(struct e1000_hw *hw)
 	case E1000_DEV_ID_82580_SGMII:
 	case E1000_DEV_ID_82580_COPPER_DUAL:
 	case E1000_DEV_ID_82580_QUAD_FIBER:
+	case E1000_DEV_ID_DH89XXCC_SGMII:
+	case E1000_DEV_ID_DH89XXCC_SERDES:
+	case E1000_DEV_ID_DH89XXCC_BACKPLANE:
+	case E1000_DEV_ID_DH89XXCC_SFP:
 		mac->type = e1000_82580;
+		break;
+	case E1000_DEV_ID_I350_COPPER:
+	case E1000_DEV_ID_I350_FIBER:
+	case E1000_DEV_ID_I350_SERDES:
+	case E1000_DEV_ID_I350_SGMII:
+	case E1000_DEV_ID_I350_DA4:
+		mac->type = e1000_i350;
 		break;
 	default:
 		/* Should never have loaded on this device */
@@ -226,6 +237,7 @@ s32 e1000_setup_init_funcs(struct e1000_hw *hw, bool init_device)
 	case e1000_82575:
 	case e1000_82576:
 	case e1000_82580:
+	case e1000_i350:
 		e1000_init_function_pointers_82575(hw);
 		break;
 	default:
