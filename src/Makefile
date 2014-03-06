@@ -1,7 +1,7 @@
 ################################################################################
 #
 # Intel(R) Gigabit Ethernet Linux driver
-# Copyright(c) 2007-2015 Intel Corporation.
+# Copyright(c) 2007-2014 Intel Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -12,11 +12,13 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details.
 #
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, see <htt;://www.gnu.org/licenses/>.
+#
 # The full GNU General Public License is included in this distribution in
 # the file called "COPYING".
 #
 # Contact Information:
-# Linux NICS <linux.nics@intel.com>
 # e1000-devel Mailing List <e1000-devel@lists.sourceforge.net>
 # Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
 #
@@ -36,6 +38,11 @@ HFILES = igb.h e1000_hw.h e1000_osdep.h e1000_defines.h e1000_mac.h \
 	 e1000_api.h igb_regtest.h e1000_mbx.h igb_vmdq.h
 ifeq (,$(BUILD_KERNEL))
 BUILD_KERNEL=$(shell uname -r)
+endif
+
+# Use IGB_PTP compile flag to enable IEEE-1588 PTP (documented in README)
+ifeq ($(filter %IGB_PTP,$(CFLAGS_EXTRA)),-DIGB_PTP)
+  CFILES += igb_ptp.c
 endif
 
 DRIVER_NAME=igb
@@ -85,8 +92,8 @@ VSP :=  $(KOBJ)/include/generated/utsrelease.h \
         /boot/vmlinuz.version.h
 
 # Config file Search Path
-CSP :=  $(KOBJ)/include/generated/autoconf.h \
-        $(KOBJ)/include/linux/autoconf.h \
+CSP :=  $(KSRC)/include/generated/autoconf.h \
+        $(KSRC)/include/linux/autoconf.h \
         /boot/vmlinuz.autoconf.h
 
 # prune the lists down to only files that exist
@@ -175,9 +182,6 @@ endif
 KVER_CODE := $(shell $(CC) $(EXTRA_CFLAGS) -E -dM $(VSP) 2>/dev/null |\
 	grep -m 1 LINUX_VERSION_CODE | awk '{ print $$3 }' | sed 's/\"//g')
 
-RHEL_CODE := $(shell $(CC) $(EXTRA_CFLAGS) -E -dM $(VSP) 2>/dev/null |\
-	grep -m 1 RHEL_RELEASE_CODE | awk '{ print $$3 }')
-
 # abort the build on kernels older than 2.4.21
 ifneq (1,$(shell [ $(KVER_CODE) -ge 132117 ] && echo 1 || echo 0))
   $(error *** Aborting the build. \
@@ -192,17 +196,6 @@ ifneq ($(PCI),1)
   $(error *** Aborting the build. \
           *** This driver requires that CONFIG_PCI is enabled)
 endif
-
-# Use NO_PTP_SUPPORT flag to disable IEEE-1588 PTP (Documented in README)
-ifneq ($(filter %NO_PTP_SUPPORT,$(CFLAGS_EXTRA)),-DNO_PTP_SUPPORT)
-# Do not attempt to enable PTP in kernels which do not have support
-ifeq (1,$(shell ([ $(KVER_CODE) -ge 196608 ] || [ $(RHEL_CODE) -ge 1540 ]) && echo 1 || echo 0))
-include $(KOBJ)/include/config/auto.conf
-ifdef CONFIG_PTP_1588_CLOCK
-CFILES += igb_ptp.c
-endif # CONFIG_PTP_1588_CLOCK
-endif # kernel version >= 3.0
-endif # !NO_PTP_SUPPORT
 
 # set the install path
 INSTDIR := /lib/modules/$(KVER)/kernel/drivers/net/$(DRIVER_NAME)
@@ -342,6 +335,7 @@ else
   endif
 endif
 	install -D -m 644 $(MANFILE).gz $(INSTALL_MOD_PATH)$(MANDIR)/man$(MANSECTION)/$(MANFILE).gz
+	man -c -P'cat > /dev/null' $(MANFILE:.$(MANSECTION)=) || true
 
 uninstall:
 	if [ -e $(INSTDIR)/$(TARGET) ] ; then \

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2015 Intel Corporation.
+  Copyright(c) 2007-2014 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -12,11 +12,13 @@
   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
   more details.
 
+  You should have received a copy of the GNU General Public License along with
+  this program; if not, see <htt;://www.gnu.org/licenses/>.
+
   The full GNU General Public License is included in this distribution in
   the file called "COPYING".
 
   Contact Information:
-  Linux NICS <linux.nics@intel.com>
   e1000-devel Mailing List <e1000-devel@lists.sourceforge.net>
   Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
 
@@ -111,6 +113,7 @@ static const u16 e1000_82580_rxpbs_table[] = {
 #define E1000_82580_RXPBS_TABLE_SIZE \
 	(sizeof(e1000_82580_rxpbs_table) / \
 	 sizeof(e1000_82580_rxpbs_table[0]))
+
 
 /**
  *  e1000_sgmii_uses_mdio_82575 - Determine if I2C pins are for external MDIO
@@ -886,6 +889,7 @@ out:
 static s32 e1000_set_d0_lplu_state_82580(struct e1000_hw *hw, bool active)
 {
 	struct e1000_phy_info *phy = &hw->phy;
+	s32 ret_val = E1000_SUCCESS;
 	u32 data;
 
 	DEBUGFUNC("e1000_set_d0_lplu_state_82580");
@@ -913,7 +917,7 @@ static s32 e1000_set_d0_lplu_state_82580(struct e1000_hw *hw, bool active)
 	}
 
 	E1000_WRITE_REG(hw, E1000_82580_PHY_POWER_MGMT, data);
-	return E1000_SUCCESS;
+	return ret_val;
 }
 
 /**
@@ -933,6 +937,7 @@ static s32 e1000_set_d0_lplu_state_82580(struct e1000_hw *hw, bool active)
 s32 e1000_set_d3_lplu_state_82580(struct e1000_hw *hw, bool active)
 {
 	struct e1000_phy_info *phy = &hw->phy;
+	s32 ret_val = E1000_SUCCESS;
 	u32 data;
 
 	DEBUGFUNC("e1000_set_d3_lplu_state_82580");
@@ -960,7 +965,7 @@ s32 e1000_set_d3_lplu_state_82580(struct e1000_hw *hw, bool active)
 	}
 
 	E1000_WRITE_REG(hw, E1000_82580_PHY_POWER_MGMT, data);
-	return E1000_SUCCESS;
+	return ret_val;
 }
 
 /**
@@ -974,7 +979,7 @@ s32 e1000_set_d3_lplu_state_82580(struct e1000_hw *hw, bool active)
  **/
 static s32 e1000_acquire_nvm_82575(struct e1000_hw *hw)
 {
-	s32 ret_val = E1000_SUCCESS;
+	s32 ret_val;
 
 	DEBUGFUNC("e1000_acquire_nvm_82575");
 
@@ -996,7 +1001,6 @@ static s32 e1000_acquire_nvm_82575(struct e1000_hw *hw)
 			DEBUGOUT("Nvm bit banging access error detected and cleared.\n");
 		}
 	}
-
 	if (hw->mac.type == e1000_82580) {
 		u32 eecd = E1000_READ_REG(hw, E1000_EECD);
 		if (eecd & E1000_EECD_BLOCKED) {
@@ -1006,6 +1010,7 @@ static s32 e1000_acquire_nvm_82575(struct e1000_hw *hw)
 			DEBUGOUT("Nvm bit banging access error detected and cleared.\n");
 		}
 	}
+
 
 	ret_val = e1000_acquire_nvm_generic(hw);
 	if (ret_val)
@@ -1045,7 +1050,7 @@ static s32 e1000_acquire_swfw_sync_82575(struct e1000_hw *hw, u16 mask)
 	u32 swmask = mask;
 	u32 fwmask = mask << 16;
 	s32 ret_val = E1000_SUCCESS;
-	s32 i = 0, timeout = 200;
+	s32 i = 0, timeout = 200; /* FIXME: find real value to use here */
 
 	DEBUGFUNC("e1000_acquire_swfw_sync_82575");
 
@@ -1120,6 +1125,7 @@ static void e1000_release_swfw_sync_82575(struct e1000_hw *hw, u16 mask)
 static s32 e1000_get_cfg_done_82575(struct e1000_hw *hw)
 {
 	s32 timeout = PHY_CFG_TIMEOUT;
+	s32 ret_val = E1000_SUCCESS;
 	u32 mask = E1000_NVM_CFG_DONE_PORT_0;
 
 	DEBUGFUNC("e1000_get_cfg_done_82575");
@@ -1144,7 +1150,7 @@ static s32 e1000_get_cfg_done_82575(struct e1000_hw *hw)
 	    (hw->phy.type == e1000_phy_igp_3))
 		e1000_phy_init_script_igp3(hw);
 
-	return E1000_SUCCESS;
+	return ret_val;
 }
 
 /**
@@ -2120,7 +2126,7 @@ static void e1000_clear_hw_cntrs_82575(struct e1000_hw *hw)
  *  e1000_rx_fifo_flush_82575 - Clean rx fifo after Rx enable
  *  @hw: pointer to the HW structure
  *
- *  After Rx enable, if manageability is enabled then there is likely some
+ *  After rx enable if managability is enabled then there is likely some
  *  bad data at the start of the fifo and possibly in the DMA fifo.  This
  *  function clears the fifos and flushes any packets that came in as rx was
  *  being enabled.
@@ -2130,13 +2136,7 @@ void e1000_rx_fifo_flush_82575(struct e1000_hw *hw)
 	u32 rctl, rlpml, rxdctl[4], rfctl, temp_rctl, rx_enabled;
 	int i, ms_wait;
 
-	DEBUGFUNC("e1000_rx_fifo_flush_82575");
-
-	/* disable IPv6 options as per hardware errata */
-	rfctl = E1000_READ_REG(hw, E1000_RFCTL);
-	rfctl |= E1000_RFCTL_IPV6_EX_DIS;
-	E1000_WRITE_REG(hw, E1000_RFCTL, rfctl);
-
+	DEBUGFUNC("e1000_rx_fifo_workaround_82575");
 	if (hw->mac.type != e1000_82575 ||
 	    !(E1000_READ_REG(hw, E1000_MANC) & E1000_MANC_RCV_TCO_EN))
 		return;
@@ -2164,6 +2164,7 @@ void e1000_rx_fifo_flush_82575(struct e1000_hw *hw)
 	 * incoming packets are rejected.  Set enable and wait 2ms so that
 	 * any packet that was coming in as RCTL.EN was set is flushed
 	 */
+	rfctl = E1000_READ_REG(hw, E1000_RFCTL);
 	E1000_WRITE_REG(hw, E1000_RFCTL, rfctl & ~E1000_RFCTL_LEF);
 
 	rlpml = E1000_READ_REG(hw, E1000_RLPML);
@@ -2487,17 +2488,11 @@ static s32 e1000_reset_hw_82580(struct e1000_hw *hw)
 		ctrl |= E1000_CTRL_RST;
 
 	E1000_WRITE_REG(hw, E1000_CTRL, ctrl);
+	E1000_WRITE_FLUSH(hw);
 
-	switch (hw->device_id) {
-	case E1000_DEV_ID_DH89XXCC_SGMII:
-		break;
-	default:
-		E1000_WRITE_FLUSH(hw);
-		break;
-	}
-
-	/* Add delay to insure DEV_RST or RST has time to complete */
-	msec_delay(5);
+	/* Add delay to insure DEV_RST has time to complete */
+	if (global_device_reset)
+		msec_delay(5);
 
 	ret_val = e1000_get_auto_rd_done_generic(hw);
 	if (ret_val) {
@@ -2893,14 +2888,13 @@ out:
 /**
  *  e1000_set_eee_i350 - Enable/disable EEE support
  *  @hw: pointer to the HW structure
- *  @adv1g: boolean flag enabling 1G EEE advertisement
- *  @adv100m: boolean flag enabling 100M EEE advertisement
  *
  *  Enable/disable EEE based on setting in dev_spec structure.
  *
  **/
-s32 e1000_set_eee_i350(struct e1000_hw *hw, bool adv1G, bool adv100M)
+s32 e1000_set_eee_i350(struct e1000_hw *hw)
 {
+	s32 ret_val = E1000_SUCCESS;
 	u32 ipcnfg, eeer;
 
 	DEBUGFUNC("e1000_set_eee_i350");
@@ -2915,16 +2909,7 @@ s32 e1000_set_eee_i350(struct e1000_hw *hw, bool adv1G, bool adv100M)
 	if (!(hw->dev_spec._82575.eee_disable)) {
 		u32 eee_su = E1000_READ_REG(hw, E1000_EEE_SU);
 
-		if (adv100M)
-			ipcnfg |= E1000_IPCNFG_EEE_100M_AN;
-		else
-			ipcnfg &= ~E1000_IPCNFG_EEE_100M_AN;
-
-		if (adv1G)
-			ipcnfg |= E1000_IPCNFG_EEE_1G_AN;
-		else
-			ipcnfg &= ~E1000_IPCNFG_EEE_1G_AN;
-
+		ipcnfg |= (E1000_IPCNFG_EEE_1G_AN | E1000_IPCNFG_EEE_100M_AN);
 		eeer |= (E1000_EEER_TX_LPI_EN | E1000_EEER_RX_LPI_EN |
 			 E1000_EEER_LPI_FC);
 
@@ -2942,19 +2927,17 @@ s32 e1000_set_eee_i350(struct e1000_hw *hw, bool adv1G, bool adv100M)
 	E1000_READ_REG(hw, E1000_EEER);
 out:
 
-	return E1000_SUCCESS;
+	return ret_val;
 }
 
 /**
  *  e1000_set_eee_i354 - Enable/disable EEE support
  *  @hw: pointer to the HW structure
- *  @adv1g: boolean flag enabling 1G EEE advertisement
- *  @adv100m: boolean flag enabling 100M EEE advertisement
  *
  *  Enable/disable EEE legacy mode based on setting in dev_spec structure.
  *
  **/
-s32 e1000_set_eee_i354(struct e1000_hw *hw, bool adv1G, bool adv100M)
+s32 e1000_set_eee_i354(struct e1000_hw *hw)
 {
 	struct e1000_phy_info *phy = &hw->phy;
 	s32 ret_val = E1000_SUCCESS;
@@ -2996,16 +2979,8 @@ s32 e1000_set_eee_i354(struct e1000_hw *hw, bool adv1G, bool adv100M)
 		if (ret_val)
 			goto out;
 
-		if (adv100M)
-			phy_data |= E1000_EEE_ADV_100_SUPPORTED;
-		else
-			phy_data &= ~E1000_EEE_ADV_100_SUPPORTED;
-
-		if (adv1G)
-			phy_data |= E1000_EEE_ADV_1000_SUPPORTED;
-		else
-			phy_data &= ~E1000_EEE_ADV_1000_SUPPORTED;
-
+		phy_data |= E1000_EEE_ADV_100_SUPPORTED |
+			    E1000_EEE_ADV_1000_SUPPORTED;
 		ret_val = e1000_write_xmdio_reg(hw, E1000_EEE_ADV_ADDR_I354,
 						E1000_EEE_ADV_DEV_I354,
 						phy_data);
@@ -3110,6 +3085,7 @@ void e1000_write_vfta_i350(struct e1000_hw *hw, u32 offset, u32 value)
 
 	E1000_WRITE_FLUSH(hw);
 }
+
 
 /**
  *  e1000_set_i2c_bb - Enable I2C bit-bang
@@ -3680,6 +3656,7 @@ static const u8 e1000_emc_therm_limit[4] = {
  **/
 s32 e1000_get_thermal_sensor_data_generic(struct e1000_hw *hw)
 {
+	s32 status = E1000_SUCCESS;
 	u16 ets_offset;
 	u16 ets_cfg;
 	u16 ets_sensor;
@@ -3699,7 +3676,7 @@ s32 e1000_get_thermal_sensor_data_generic(struct e1000_hw *hw)
 	/* Return the internal sensor only if ETS is unsupported */
 	e1000_read_nvm(hw, NVM_ETS_CFG, 1, &ets_offset);
 	if ((ets_offset == 0x0000) || (ets_offset == 0xFFFF))
-		return E1000_SUCCESS;
+		return status;
 
 	e1000_read_nvm(hw, ets_offset, 1, &ets_cfg);
 	if (((ets_cfg & NVM_ETS_TYPE_MASK) >> NVM_ETS_TYPE_SHIFT)
@@ -3723,7 +3700,7 @@ s32 e1000_get_thermal_sensor_data_generic(struct e1000_hw *hw)
 					E1000_I2C_THERMAL_SENSOR_ADDR,
 					&data->sensor[i].temp);
 	}
-	return E1000_SUCCESS;
+	return status;
 }
 
 /**
@@ -3735,6 +3712,7 @@ s32 e1000_get_thermal_sensor_data_generic(struct e1000_hw *hw)
  **/
 s32 e1000_init_thermal_sensor_thresh_generic(struct e1000_hw *hw)
 {
+	s32 status = E1000_SUCCESS;
 	u16 ets_offset;
 	u16 ets_cfg;
 	u16 ets_sensor;
@@ -3762,7 +3740,7 @@ s32 e1000_init_thermal_sensor_thresh_generic(struct e1000_hw *hw)
 	/* Return the internal sensor only if ETS is unsupported */
 	e1000_read_nvm(hw, NVM_ETS_CFG, 1, &ets_offset);
 	if ((ets_offset == 0x0000) || (ets_offset == 0xFFFF))
-		return E1000_SUCCESS;
+		return status;
 
 	e1000_read_nvm(hw, ets_offset, 1, &ets_cfg);
 	if (((ets_cfg & NVM_ETS_TYPE_MASK) >> NVM_ETS_TYPE_SHIFT)
@@ -3793,5 +3771,5 @@ s32 e1000_init_thermal_sensor_thresh_generic(struct e1000_hw *hw)
 							low_thresh_delta;
 		}
 	}
-	return E1000_SUCCESS;
+	return status;
 }

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2015 Intel Corporation.
+  Copyright(c) 2007-2014 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -12,11 +12,13 @@
   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
   more details.
 
+  You should have received a copy of the GNU General Public License along with
+  this program; if not, see <htt;://www.gnu.org/licenses/>.
+
   The full GNU General Public License is included in this distribution in
   the file called "COPYING".
 
   Contact Information:
-  Linux NICS <linux.nics@intel.com>
   e1000-devel Mailing List <e1000-devel@lists.sourceforge.net>
   Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
 
@@ -27,7 +29,7 @@
 static s32 e1000_validate_mdi_setting_generic(struct e1000_hw *hw);
 static void e1000_set_lan_id_multi_port_pcie(struct e1000_hw *hw);
 static void e1000_config_collision_dist_generic(struct e1000_hw *hw);
-static int e1000_rar_set_generic(struct e1000_hw *hw, u8 *addr, u32 index);
+static void e1000_rar_set_generic(struct e1000_hw *hw, u8 *addr, u32 index);
 
 /**
  *  e1000_init_mac_ops_generic - Initialize MAC function pointers
@@ -134,14 +136,14 @@ void e1000_null_write_vfta(struct e1000_hw E1000_UNUSEDARG *hw,
 }
 
 /**
- *  e1000_null_rar_set - No-op function, return 0
+ *  e1000_null_rar_set - No-op function, return void
  *  @hw: pointer to the HW structure
  **/
-int e1000_null_rar_set(struct e1000_hw E1000_UNUSEDARG *hw,
+void e1000_null_rar_set(struct e1000_hw E1000_UNUSEDARG *hw,
 			u8 E1000_UNUSEDARG *h, u32 E1000_UNUSEDARG a)
 {
 	DEBUGFUNC("e1000_null_rar_set");
-	return E1000_SUCCESS;
+	return;
 }
 
 /**
@@ -311,6 +313,7 @@ s32 e1000_check_alt_mac_addr_generic(struct e1000_hw *hw)
 	if (ret_val)
 		return ret_val;
 
+
 	/* Alternate MAC address is handled by the option ROM for 82580
 	 * and newer. SW support not required.
 	 */
@@ -372,7 +375,7 @@ s32 e1000_check_alt_mac_addr_generic(struct e1000_hw *hw)
  *  Sets the receive address array register at index to the address passed
  *  in by addr.
  **/
-static int e1000_rar_set_generic(struct e1000_hw *hw, u8 *addr, u32 index)
+static void e1000_rar_set_generic(struct e1000_hw *hw, u8 *addr, u32 index)
 {
 	u32 rar_low, rar_high;
 
@@ -398,8 +401,6 @@ static int e1000_rar_set_generic(struct e1000_hw *hw, u8 *addr, u32 index)
 	E1000_WRITE_FLUSH(hw);
 	E1000_WRITE_REG(hw, E1000_RAH(index), rar_high);
 	E1000_WRITE_FLUSH(hw);
-
-	return E1000_SUCCESS;
 }
 
 /**
@@ -868,6 +869,7 @@ static s32 e1000_set_default_fc_generic(struct e1000_hw *hw)
 					   NVM_INIT_CONTROL2_REG,
 					   1, &nvm_data);
 	}
+
 
 	if (ret_val) {
 		DEBUGOUT("NVM Read Error\n");

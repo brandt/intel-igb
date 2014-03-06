@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) Gigabit Ethernet Linux driver
-  Copyright(c) 2007-2015 Intel Corporation.
+  Copyright(c) 2007-2014 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -12,11 +12,13 @@
   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
   more details.
 
+  You should have received a copy of the GNU General Public License along with
+  this program; if not, see <htt;://www.gnu.org/licenses/>.
+
   The full GNU General Public License is included in this distribution in
   the file called "COPYING".
 
   Contact Information:
-  Linux NICS <linux.nics@intel.com>
   e1000-devel Mailing List <e1000-devel@lists.sourceforge.net>
   Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
 
@@ -65,9 +67,10 @@
 #define E1000_BIG_ENDIAN __BIG_ENDIAN
 #endif
 
+
 #ifdef DEBUG
-#define DEBUGOUT(S) pr_debug(S)
-#define DEBUGOUT1(S, A...) pr_debug(S, ## A)
+#define DEBUGOUT(S) printk(KERN_DEBUG S)
+#define DEBUGOUT1(S, A...) printk(KERN_DEBUG S, ## A)
 #else
 #define DEBUGOUT(S)
 #define DEBUGOUT1(S, A...)
@@ -107,30 +110,28 @@ u32 e1000_read_reg(struct e1000_hw *hw, u32 reg);
 #define E1000_WRITE_REG_ARRAY_DWORD E1000_WRITE_REG_ARRAY
 
 #define E1000_WRITE_REG_ARRAY_WORD(a, reg, offset, value) ( \
-	writew((value), ((a)->hw_addr + E1000_REGISTER(a, reg) + \
-	((offset) << 1))))
+    writew((value), ((a)->hw_addr + E1000_REGISTER(a, reg) + ((offset) << 1))))
 
 #define E1000_READ_REG_ARRAY_WORD(a, reg, offset) ( \
-	readw((a)->hw_addr + E1000_REGISTER(a, reg) + ((offset) << 1)))
+    readw((a)->hw_addr + E1000_REGISTER(a, reg) + ((offset) << 1)))
 
 #define E1000_WRITE_REG_ARRAY_BYTE(a, reg, offset, value) ( \
-	writeb((value), ((a)->hw_addr + E1000_REGISTER(a, reg) + (offset))))
+    writeb((value), ((a)->hw_addr + E1000_REGISTER(a, reg) + (offset))))
 
 #define E1000_READ_REG_ARRAY_BYTE(a, reg, offset) ( \
-	readb((a)->hw_addr + E1000_REGISTER(a, reg) + (offset)))
+    readb((a)->hw_addr + E1000_REGISTER(a, reg) + (offset)))
 
 #define E1000_WRITE_REG_IO(a, reg, offset) do { \
-	outl(reg, ((a)->io_base));                  \
-	outl(offset, ((a)->io_base + 4)); \
-	} while (0)
+    outl(reg, ((a)->io_base));                  \
+    outl(offset, ((a)->io_base + 4));      } while (0)
 
 #define E1000_WRITE_FLUSH(a) E1000_READ_REG(a, E1000_STATUS)
 
 #define E1000_WRITE_FLASH_REG(a, reg, value) ( \
-	writel((value), ((a)->flash_address + reg)))
+    writel((value), ((a)->flash_address + reg)))
 
 #define E1000_WRITE_FLASH_REG16(a, reg, value) ( \
-	writew((value), ((a)->flash_address + reg)))
+    writew((value), ((a)->flash_address + reg)))
 
 #define E1000_READ_FLASH_REG(a, reg) (readl((a)->flash_address + reg))
 
