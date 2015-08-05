@@ -1,7 +1,7 @@
 ################################################################################
 #
 # Intel(R) Gigabit Ethernet Linux driver
-# Copyright(c) 2007-2014 Intel Corporation.
+# Copyright(c) 2007-2015 Intel Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -36,11 +36,6 @@ HFILES = igb.h e1000_hw.h e1000_osdep.h e1000_defines.h e1000_mac.h \
 	 e1000_api.h igb_regtest.h e1000_mbx.h igb_vmdq.h
 ifeq (,$(BUILD_KERNEL))
 BUILD_KERNEL=$(shell uname -r)
-endif
-
-# Use IGB_PTP compile flag to enable IEEE-1588 PTP (documented in README)
-ifeq ($(filter %IGB_PTP,$(CFLAGS_EXTRA)),-DIGB_PTP)
-  CFILES += igb_ptp.c
 endif
 
 DRIVER_NAME=igb
@@ -90,8 +85,8 @@ VSP :=  $(KOBJ)/include/generated/utsrelease.h \
         /boot/vmlinuz.version.h
 
 # Config file Search Path
-CSP :=  $(KSRC)/include/generated/autoconf.h \
-        $(KSRC)/include/linux/autoconf.h \
+CSP :=  $(KOBJ)/include/generated/autoconf.h \
+        $(KOBJ)/include/linux/autoconf.h \
         /boot/vmlinuz.autoconf.h
 
 # prune the lists down to only files that exist
@@ -156,6 +151,32 @@ EXTRA_CFLAGS += $(shell [ -f $(KSRC)/include/linux/modversions.h ] && \
             echo "-DMODVERSIONS -DEXPORT_SYMTAB \
                   -include $(KSRC)/include/linux/modversions.h")
 
+# Some helper functions for converting kernel version to version codes
+get_kver = $(or $(word ${2},$(subst ., ,${1})),0)
+get_kvercode = $(shell [ "${1}" -ge 0 -a "${1}" -le 255 2>/dev/null ] && \
+                       [ "${2}" -ge 0 -a "${2}" -le 255 2>/dev/null ] && \
+                       [ "${3}" -ge 0 -a "${3}" -le 255 2>/dev/null ] && \
+                       printf %d $$(( ( ${1} << 16 ) + ( ${2} << 8 ) + ( ${3} ) )) )
+
+# The following command line parameter is intended for development of KCOMPAT
+# against upstream kernels such as net-next which have broken or non-updated
+# version codes in their Makefile. They are intended for debugging and
+# development purpose only so that we can easily test new KCOMPAT early. If you
+# don't know what this means, you do not need to set this flag. There is no
+# arcane magic here.
+
+# Convert LINUX_VERSION into LINUX_VERSION_CODE
+ifneq (${LINUX_VERSION},)
+  LINUX_VERSION_CODE=$(call get_kvercode,$(call get_kver,${LINUX_VERSION},1),$(call get_kver,${LINUX_VERSION},2),$(call get_kver,${LINUX_VERSION},3))
+endif
+
+# Honor LINUX_VERSION_CODE
+ifneq (${LINUX_VERSION_CODE},)
+  $(warning Forcing target kernel's LINUX_VERSION_CODE to ${LINUX_VERSION_CODE}$(if ${LINUX_VERSION}, from LINUX_VERSION=${LINUX_VERSION}). Do this at your own risk.)
+  KVER_CODE := ${LINUX_VERSION_CODE}
+  EXTRA_CFLAGS += -DLINUX_VERSION_CODE=${LINUX_VERSION_CODE}
+endif
+
 EXTRA_CFLAGS += $(CFLAGS_EXTRA)
 
 RHC := $(KSRC)/include/linux/rhconfig.h
@@ -177,8 +198,13 @@ ifneq ($(KSRC),$(shell readlink /lib/modules/$(KVER)/build))
 endif
 endif
 
-KVER_CODE := $(shell $(CC) $(EXTRA_CFLAGS) -E -dM $(VSP) 2>/dev/null |\
-	grep -m 1 LINUX_VERSION_CODE | awk '{ print $$3 }' | sed 's/\"//g')
+ifeq (${KVER_CODE},)
+  KVER_CODE := $(shell $(CC) $(EXTRA_CFLAGS) -E -dM $(VSP) 2>/dev/null |\
+                 grep -m 1 LINUX_VERSION_CODE | awk '{ print $$3 }' | sed 's/\"//g')
+endif
+
+RHEL_CODE := $(shell $(CC) $(EXTRA_CFLAGS) -E -dM $(VSP) 2>/dev/null |\
+	grep -m 1 RHEL_RELEASE_CODE | awk '{ print $$3 }')
 
 # abort the build on kernels older than 2.4.21
 ifneq (1,$(shell [ $(KVER_CODE) -ge 132117 ] && echo 1 || echo 0))
@@ -194,6 +220,17 @@ ifneq ($(PCI),1)
   $(error *** Aborting the build. \
           *** This driver requires that CONFIG_PCI is enabled)
 endif
+
+# Use NO_PTP_SUPPORT flag to disable IEEE-1588 PTP (Documented in README)
+ifneq ($(filter %NO_PTP_SUPPORT,$(CFLAGS_EXTRA)),-DNO_PTP_SUPPORT)
+# Do not attempt to enable PTP in kernels which do not have support
+ifeq (1,$(shell ([ $(KVER_CODE) -ge 196608 ] || [ $(RHEL_CODE) -ge 1540 ]) && echo 1 || echo 0))
+include $(KOBJ)/include/config/auto.conf
+ifdef CONFIG_PTP_1588_CLOCK
+CFILES += igb_ptp.c
+endif # CONFIG_PTP_1588_CLOCK
+endif # kernel version >= 3.0
+endif # !NO_PTP_SUPPORT
 
 # set the install path
 INSTDIR := /lib/modules/$(KVER)/kernel/drivers/net/$(DRIVER_NAME)
@@ -333,7 +370,6 @@ else
   endif
 endif
 	install -D -m 644 $(MANFILE).gz $(INSTALL_MOD_PATH)$(MANDIR)/man$(MANSECTION)/$(MANFILE).gz
-	man -c -P'cat > /dev/null' $(MANFILE:.$(MANSECTION)=) || true
 
 uninstall:
 	if [ -e $(INSTDIR)/$(TARGET) ] ; then \
